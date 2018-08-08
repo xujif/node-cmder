@@ -1,5 +1,7 @@
 import colors from 'colors/safe';
 import Debug from 'debug';
+import glob from 'glob';
+import util from 'util';
 
 import { CommandInterface, ConsoleCommandClass, getConsoleCommandMeta } from './decorators';
 import { ConsoleCommand, ConsoleParams, DefinationError, ExecuteError, OptionDefinition } from './types';
@@ -119,15 +121,12 @@ export class CommandExecutor extends Executor {
         if (!this.cmd.withoutHelp && (param.options['-h'] || param.options['--help'])) {
             return this.showHelp()
         }
-        let opt: any
         try {
-            opt = this.transformParam(param)
+            const opt = this.transformParam(param)
+            return this.cmd.handle(opt)
         } catch (e) {
-            console.log(colors.red('Error:\n  ' + e.message))
-            this.showHelp()
-            return undefined
+            throw new DefinationError('Error:\n  ' + e.message)
         }
-        return this.cmd.handle(opt)
     }
 }
 
@@ -205,6 +204,43 @@ export class ConsoleManager {
         return this
     }
 
+    async loadFromFiles (path: string | string[]) {
+        const arr = Array.isArray(path) ? path : [path]
+        const g = util.promisify(glob.Glob)
+        for (let p of arr) {
+            const files = await g(p)
+            for (let f of files) {
+                const m = require(f)
+                Object.keys(m).map(n => m[n])
+                    .filter(c => typeof c === 'function')
+                    .forEach(c => {
+                        const meta = getConsoleCommandMeta(c)
+                        if (meta) {
+                            this.addClassCommand(c)
+                        }
+                    });
+            }
+        }
+    }
+
+    loadFromFilesSync (path: string | string[]) {
+        const arr = Array.isArray(path) ? path : [path]
+        for (let p of arr) {
+            const files = glob.sync(p)
+            for (let f of files) {
+                const m = require(f)
+                Object.keys(m).map(n => m[n])
+                    .filter(c => typeof c === 'function')
+                    .forEach(c => {
+                        const meta = getConsoleCommandMeta(c)
+                        if (meta) {
+                            this.addClassCommand(c)
+                        }
+                    });
+            }
+        }
+    }
+
     /**
      * excute with argv (default: process.argv.slice(2))
      *
@@ -212,9 +248,22 @@ export class ConsoleManager {
      * @returns
      * @memberof ConsoleManager
      */
-    execute (argv = process.argv.slice(2)) {
+    async  execute (argv = process.argv.slice(2)) {
         _debug('excute:', argv)
-        return this.subCommand.execute(argv)
+        try {
+            await this.subCommand.execute(argv)
+            process.exit(0)
+        }
+        catch (e) {
+            if (e instanceof DefinationError) {
+                console.log(colors.red(e.message))
+                console.log(colors.yellow("Info:\n  use -h or --help option to get more info"))
+                process.exit(-1)
+            }
+            if (e instanceof ExecuteError) {
+                process.exit(e.exitCode)
+            }
+        }
     }
 
     protected buildClassCommand (cls: ConsoleCommandClass): ConsoleCommand {

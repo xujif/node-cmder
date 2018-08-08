@@ -8,6 +8,11 @@ export class DefinationError extends Error {
 
 export class ExecuteError extends Error {
     CODE = 'ERR_CONOSLE_EXECUTE_ERROR'
+    exitCode!: number
+    constructor(message: string, exitCode: number = -1) {
+        super(message)
+        this.exitCode = exitCode
+    }
 }
 
 export interface OptionDefinition {

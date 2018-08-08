@@ -4,7 +4,7 @@ import { ConsoleCommand, DefinationError, OptionDefinition } from './types';
 
 
 export interface CommandInterface {
-    handle (): number | void | Promise<Number> | Promise<void>
+    handle (): any
 }
 
 const SYMBOL_OPTION_META = Symbol.for(require('../package.json').name + 'cli:option-meta')
