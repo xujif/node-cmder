@@ -7,14 +7,7 @@ import { CommandInterface, ConsoleCommandClass, getConsoleCommandMeta } from './
 import { ConsoleCommand, ConsoleParams, DefinationError, ExecuteError, OptionDefinition } from './types';
 
 const _debug = Debug('console')
-export const DefaultOptions: OptionDefinition[] = [
-    {
-        name: 'help',
-        flag: 'h',
-        type: Boolean,
-        description: 'show command help'
-    }
-]
+
 export abstract class Executor {
     name: string
     description: string
@@ -63,25 +56,23 @@ export abstract class Executor {
 
 
     protected renderOptionHelp () {
-        const width = 30
-        return this.options.filter(o => !o.isArg).concat(DefaultOptions).map(o => {
+        const width = 40
+        return this.options.filter(o => !o.isArg).map(o => {
             let s = '  '
             if (o.flag) {
                 s += `-${o.flag}, `
             }
             s += `--${o.name} `
             if (o.type !== Boolean) {
-                s += '<value>'
+                s += `<${(o.type || String).name.toLocaleLowerCase()}>`
             }
             if (s.length < width) {
                 s += ' '.repeat(width - s.length)
             }
+
             s += (o.description || 'no description')
             if (!o.optional) {
                 s += ' (required: true)'
-            }
-            if (o.isArray) {
-                s += ' (complex)'
             }
             if (typeof o.default !== 'undefined') {
                 s += ` (default: ${o.default})`
@@ -91,7 +82,7 @@ export abstract class Executor {
     }
 
     protected renderArgumentsHelp (options: OptionDefinition[]) {
-        const width = 30
+        const width = 40
         return options.map(o => {
             let s = `  ${o.name}  `
             if (s.length < width) {
@@ -166,7 +157,7 @@ export class GroupCommandExecutor extends Executor {
         const keys = Array.from(this.cmdsMap.keys()).sort()
         for (let name of keys) {
             const executor = this.cmdsMap.get(name)!
-            const width = 30
+            const width = 40
             let s = '  ' + name
             if (s.length < width) {
                 s += ' '.repeat(width - s.length)
@@ -181,6 +172,20 @@ export class GroupCommandExecutor extends Executor {
 export class ConsoleManager {
     protected subCommand = new GroupCommandExecutor({ name: '' })
 
+    protected defaultOptions: OptionDefinition[] = [
+        {
+            name: 'help',
+            flag: 'h',
+            type: Boolean,
+            optional: true,
+            description: 'show command help'
+        }
+    ]
+
+    constructor() {
+        this.subCommand.options.push(...this.defaultOptions)
+    }
+
     /**
      * add a class command
      *
@@ -189,6 +194,10 @@ export class ConsoleManager {
      */
     addClassCommand (cls: ConsoleCommandClass): this {
         const cmd = this.buildClassCommand(cls)
+        cmd.options = cmd.options || []
+        if (!cmd.withoutHelp) {
+            cmd.options.push(...this.defaultOptions)
+        }
         this.subCommand.addSubCommand(cmd)
         return this
     }
@@ -200,6 +209,10 @@ export class ConsoleManager {
      * @memberof ConsoleManager
      */
     addCommand (cmd: ConsoleCommand): this {
+        cmd.options = cmd.options || []
+        if (!cmd.withoutHelp) {
+            cmd.options.push(...this.defaultOptions)
+        }
         this.subCommand.addSubCommand(cmd)
         return this
     }

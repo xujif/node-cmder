@@ -140,6 +140,7 @@ describe('console test', () => {
         }
         const manager = new Console.ConsoleManager()
         manager.addClassCommand(Test)
+        // tslint:disable-next-line
         manager.execute('test foobar --name nick --age 10 --alias a -a b --alias c -a d'.split(' '))
     })
     it('test manager', (done) => {
@@ -182,6 +183,7 @@ describe('console test', () => {
             }
         }
         manager.addCommand(cmd)
+        // tslint:disable-next-line
         manager.execute('test foobar --name nick --age 10 --alias a -a b --alias c -a d'.split(' '))
     })
 

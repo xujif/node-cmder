@@ -66,14 +66,15 @@ export interface DecoratorOptionDefinition extends OptionDefinition {
 export function Option (opt?: Pick<Partial<DecoratorOptionDefinition>, 'name' | 'flag' | 'optional' | 'description' | 'type'>) {
     return function (target: any, prop: string) {
         opt = opt || {}
+        const isArray = Reflect.getMetadata('design:type', target, prop) === Array
         getDecoratorOptionDefinitionArr(target.constructor).push({
             name: opt.name || prop,
             flag: opt.flag,
             prop: prop,
             optional: opt.optional,
-            type: Reflect.getMetadata('design:type', target, prop),
+            type: opt.type || (isArray ? String : Reflect.getMetadata('design:type', target, prop)),
             description: opt.description,
-            isArray: Reflect.getMetadata('design:type', target, prop) === Array,
+            isArray: isArray,
             isArg: false
         })
     }
