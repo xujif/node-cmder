@@ -8,12 +8,12 @@ easily generate your command string signature.
 ```Typescript
 // test.js
 import { CommandBuilder } from 'node-cmder'
-const signature = `{name : arg} {--bool-flag : a bool flag} {--A|age=10 : option with default } commond description`
+const signature = `{name : arg} {--bool-flag} {--A|age=10} commond description`
 CommandBuilder.command(signature)
-              .setAction(({ args, options }) => {
-                 console.log(args, options)
-              })
-              .execute()
+  .setAction(({ args, options }) => {
+    console.log(args, options)
+  })
+  .execute()
 ```
 then run it
 ```bash
@@ -25,8 +25,8 @@ Arguments:
   <name>                        arg
 
 options:
-  --bool-flag                   a bool flag
-  -A, --age[=10]                option with default
+  --bool-flag                   
+  -A, --age[=10]                
 
 Description:
   commond description
@@ -45,15 +45,15 @@ $ node test.js joe --bool-flag -A 20
 
 ### Option parsing
 ```
-{--bool}                         //  boolean option
-{--bool : this is boolean}       //  option with description
-{--B|bool}                       //  option with shortcut
-{--version=}                     //  option need value (required)
-{--version=10}                   //  option with default value
-{--version="has blank"}          //  option with default value contains blank
-{--version?=}                    //  option need value (optional)
-{--tags=*}                       //  array option
-{--tags?=*}                      //  array option (optional)
+{--bool}                     //  boolean option
+{--bool : this is boolean}   //  option with description
+{--B|bool}                   //  option with shortcut
+{--version=}                 //  option need value (required)
+{--version=10}               //  option with default value
+{--version="has blank"}      //  option with default value contains blank
+{--version?=}                //  option need value (optional)
+{--tags=*}                   //  array option
+{--tags?=*}                  //  array option (optional)
 
 ```
 ### argument parsing  
@@ -70,6 +70,10 @@ $ node test.js joe --bool-flag -A 20
 {arg="has blank"}            //  arg with default value contains blank
 
 ```
+### Option transform and callback
+`.mergeOption('age',{transform:parseInt})` transform age to int   
+`.mergeOption('age',{callback:(v)=>console.log(v)})` option callback
+
 ### special option
 - `---help` enable by default. show commond help. call `.removeHelpOption()` to disable it or call `.customHelp()` to customized it.
 - `---V|version`  disable by default. call `.setVersion()` to enable.
@@ -86,6 +90,9 @@ build a group commond with can add sub commonds
 - `.getHelpText()` get the help text
 - `.addOption()` add the extra option 
 - `.addArg()` add the extra argument (only Command)
+- `.mergeOption(name,opt)` set option metas
+
+
 - more api are in [Section Interfaces](#interfaces)
 
 ## Examples
@@ -111,7 +118,7 @@ CommandBuilder.command('test {name : arg}')
     .addOption('--A|age=')
     .setVersion('2.0.0')
     .customHelp((origin) => {
-        return origin + `\nExample:\n  node test.js  joe name 2 -A=20 --help`
+        return origin + `\nExample:\n node test.js joe name 2 -A=20`
     })
     .setAction(({ args, options }) => {
         console.log(args, options)
@@ -266,10 +273,10 @@ class Command{
     /**
      * custom help text
      *
-     * @param {(string | ((origin: string) => string))} s
+     * @param {(string | ((s: string) => string))} s
      * @param {string} [option='--help']
      * @memberof Command
      */
-    customHelp(s: string | ((origin: string) => string), option?: string): this;
+    customHelp(s: string | ((s: string) => string), option?: string): this;
 }
 ```
