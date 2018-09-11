@@ -1,4 +1,7 @@
 import colors from 'colors/safe';
+import Debug from 'debug';
+
+const debug = Debug('node-cmder')
 
 function strWidth (s: string, w: number) {
     return s + ' '.repeat(w - s.length)
@@ -217,6 +220,19 @@ export class Command {
         return this
     }
 
+    run (argv: string[]) {
+        if (!this._action) {
+            throw new Types.DefinationError('no action defined')
+        }
+        const raw = this.parseArgv(argv)
+        debug('parseArgv', raw)
+        const options = this.processOptions(raw.options)
+        debug('processOptions', options)
+        const args = this.processArgs(raw.args)
+        debug('processArgs', args)
+        return this._action({ args, options })
+    }
+
     /**
      * 
      *
@@ -225,14 +241,18 @@ export class Command {
      * @memberof Command
      */
     execute (argv = process.argv.slice(2)) {
-        if (!this._action) {
-            throw new Types.DefinationError('no action defined')
+        debug('command execute', argv)
+        try {
+            return this.run(argv)
+        } catch (e) {
+            if (e instanceof Types.ExecuteError) {
+                const message = `${colors.red('Error:')}\n  ${colors.white(e.message)}`
+                    + `\n\n${colors.yellow('Help:')}\n  use --help for more information`
+                console.log(message)
+                process.exit(e.exitCode)
+            }
+            throw e
         }
-        const raw = this.parseArgv(argv)
-        const args = this.processArgs(raw.args)
-        const options = this.processOptions(raw.options)
-
-        return this._action({ args, options })
     }
 
 
@@ -408,7 +428,7 @@ export class Command {
                 } else {
                     const value = _value ? _value : argv.shift()
                     if (!value) {
-                        throw new Types.ExecuteError('no value with option: ' + s)
+                        throw new Types.ExecuteError(`option ${s} need value`)
                     }
                     if (d.isArray) {
                         optionsRaw[d.name] = optionsRaw[d.name] || []
@@ -433,14 +453,14 @@ export class Command {
         for (let d of defs) {
             if (d.isArray) {
                 if (!d.isOptional && argsRaw.length === 0) {
-                    throw new Types.ExecuteError(`no enough args provided for {${d.name}}`)
+                    throw new Types.ExecuteError(`argument <${d.name} ...> need values`)
                 } else {
                     args[d.name] = d.transform(argsRaw)
                 }
             } else {
                 const v = argsRaw.shift() || d.default
                 if (!v && !d.isOptional) {
-                    throw new Types.ExecuteError(`no enough args provided for {${d.name}}`)
+                    throw new Types.ExecuteError(`argument <${d.name}> need a value`)
                 }
                 args[d.name] = d.transform(v)
             }
@@ -468,6 +488,7 @@ export class Command {
 }
 
 export class GroupCommand {
+    name: string = 'entry.js'
     protected commands = {} as { [k: string]: Command }
     protected options = {} as { [k: string]: Types.OptionDefinition }
 
@@ -550,8 +571,9 @@ export class GroupCommand {
     getHelpText () {
         const options = Object.keys(this.options)
             .filter(s => /^--/.test(s)).map(s => this.options[s])
+
         const optionsSinature = options.length > 0 ? '[options]' : ''
-        let help = `${colors.yellow('Usage:')}\n  ${optionsSinature} <command>`
+        let help = `${colors.yellow('Usage:')}\n node ${this.name} ${optionsSinature} <command> [args...] [command options]`
         if (options.length > 0) {
             const optionsHelp = options.map(d => '  ' + d.getHelp()).join('\n')
             help += `\n\n${colors.yellow('options:')}\n${optionsHelp}`
@@ -574,21 +596,49 @@ export class GroupCommand {
     }
 
     /**
+     * execute command
+     *
+     * @param {string[]} argv
+     * @returns
+     * @memberof GroupCommand
+     */
+    run (argv: string[]) {
+        const raw = this.parseArgvUntilCommand(argv)
+        debug('parseArgvUntilCommand', raw)
+        this.processOptions(raw.options)
+        if (raw.args.length === 0) {
+            throw new Types.ExecuteError('no commond provided')
+        }
+        const sub = raw.args[0]
+        debug('call sub command', sub)
+        const command = this.commands[sub]
+        if (!command) {
+            throw new Types.ExecuteError(`commond "${sub}" is not defined`)
+        }
+        return command.execute(raw.restArgv)
+    }
+
+
+    /**
      * execute the commond
      *
      * @param {*} [argv=process.argv.slice(2)]
      * @returns
-     * @memberof GroupCommand
+     * @memberof Command
      */
     execute (argv = process.argv.slice(2)) {
-        const raw = this.parseArgvUntilCommand(argv)
-        this.processOptions(raw.options)
-        const sub = raw.args[0]
-        const command = this.commands[sub]
-        if (!command) {
-            throw new Types.ExecuteError('un support sub commond , use --help to get help')
+        debug('group command execute', argv)
+        try {
+            return this.run(argv)
+        } catch (e) {
+            if (e instanceof Types.ExecuteError) {
+                const message = `${colors.red('Error:')}\n  ${colors.white(e.message)}`
+                    + `\n${colors.yellow('Help:')}\n  use --help for more information`
+                console.log(message)
+                process.exit(e.exitCode)
+            }
+            throw e
         }
-        return command.execute(raw.restArgv)
     }
 
     /**
@@ -600,7 +650,6 @@ export class GroupCommand {
     protected getSubCommondDescription (c: Command) {
         return colors.green(strWidth(c.name!, 30)) + c.description
     }
-
 
     protected processOptions (optionsRaw: any) {
         const options = {} as any
@@ -662,6 +711,7 @@ export class GroupCommand {
         }
     }
 }
+
 export const CommandBuilder = {
     command (signature: string, action?: Types.Action) {
         return new Command(signature, action)
