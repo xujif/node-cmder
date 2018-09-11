@@ -1,14 +1,19 @@
 ### Command line tools for Node.js & Typescript
-easily generate your command string signature.
- - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond signature
- - group command (sub commond) support
+easily generate your command with a string signature. 
+  - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond.
+
 
 
 ## Example signature
+`command {arg1} {arg2 : arg2} {--bool-flag} {--A|age=10} description` 
+
+Example:
 ```Typescript
 // test.js
 import { CommandBuilder } from 'node-cmder'
-const signature = `{name : arg} {--bool-flag} {--A|age=10} commond description`
+
+const signature = `{name} {--bool-flag} {--A|age=10} description`
+
 CommandBuilder.command(signature)
   .setAction(({ args, options }) => {
     console.log(args, options)
@@ -22,14 +27,14 @@ Usage:
   command [options] <name>
 
 Arguments:
-  <name>                        arg
+  <name>
 
 options:
   --bool-flag                   
   -A, --age[=10]                
 
 Description:
-  commond description
+  description
 
 $ node test.js joe --bool-flag -A 20
 
@@ -60,12 +65,12 @@ $ node test.js joe --bool-flag -A 20
 
 ```
 {arg}                        // arg
+{arg : this is arg}          //  arg with description
 {arg?}                       // optional arg
 {arg*}                       // array arg
 {version?=}                  //  option need value (optional)
 {tags=*}                     //  array arg
 {tags?=*}                    //  array arg (optional)
-{arg : this is arg}          //  arg with description
 {arg=10}                     //  arg with default value
 {arg="has blank"}            //  arg with default value contains blank
 
