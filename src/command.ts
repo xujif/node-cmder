@@ -23,7 +23,6 @@ export namespace Types {
         description: string = ''
         isOptional = false
         isArray = false
-        validate?: (v: any) => void
         transform (value: any) {
             return value
         }
@@ -50,6 +49,9 @@ export namespace Types {
         }
         getHelp () {
             let left = this.getSignatureName()
+            if (!this.isBoolean && typeof this.default !== 'undefined') {
+                left += '[=' + this.default + ']'
+            }
             return strWidth(left, 30) + this.description
         }
     }
@@ -66,14 +68,17 @@ export namespace Types {
      * has-defaut=value
      */
     export function parseArgumentSinagure (signature: string) {
+        if (/$\{.+\}^/.test(signature)) {
+            signature = signature.substring(1, signature.length - 1)
+        }
         const opt = new ArgumentDefinition()
         // compatible with laravel signature
         let [exp, ...rest] = signature.split(' : ')
         if (/\*|\?/.test(exp) && exp.indexOf('=') === -1) {
-            exp = exp.trim().replace(/([a-z]\w+)(\?)?(\*)?$/, "$1$2=$3")
+            exp = exp.trim().replace(/^([a-z][-\w]+)(\?)?(\*)?$/, "$1$2=$3")
         }
         opt.description = rest.join(' : ')
-        const m = exp.trim().match(/([a-z]\w+)(\?)?(=.+)?/i)
+        const m = exp.trim().match(/^([a-z][-\w]+)(\?)?(=.+)?/i)
         if (!m) {
             throw new DefinationError('Unable to determine argument name from signature: ' + signature)
         }
@@ -103,8 +108,11 @@ export namespace Types {
      * @returns
      */
     export function parseOptionSignature (signature: string) {
+        if (/$\{.+\}^/.test(signature)) {
+            signature = signature.substring(1, signature.length - 1)
+        }
         const [exp, ...rest] = signature.split(' : ')
-        const m = exp.trim().match(/--([\w|]+)(\?)?(=.*)?/)
+        const m = exp.trim().match(/--([-\w|]+)(\?)?(=.*)?/)
         if (!m) {
             throw new DefinationError('Unable to determine option name from signature: ' + signature)
         }
@@ -134,29 +142,68 @@ export namespace Types {
         }
         return opt
     }
-    export type Action = (opt: { args: any, options: any, command: Command }) => any
+    export type Action = (opt: { args: any, options: any }) => any
 }
 
 
 export class Command {
-    name!: string
+    name?: string
     description: string = ''
-    options = {} as { [k: string]: Types.OptionDefinition }
-    args = {} as { [k: string]: Types.ArgumentDefinition }
-
+    protected options = {} as { [k: string]: Types.OptionDefinition }
+    protected args = {} as { [k: string]: Types.ArgumentDefinition }
+    protected version = '0.0.0'
     protected _action !: Types.Action
     protected _customHelp?: false | string | ((origin: string) => string) = false
     protected _customHelpOption = '--help'
 
     constructor(signature: string = 'command', action?: Types.Action) {
-        this.signature(signature)
+        this.parseSignature(signature)
         if (action) {
             this._action = action
         }
+        this.addOption('--help : print this help message', {
+            callback: (v) => {
+                if (v) {
+                    this.printHelp()
+                    process.exit(0)
+                }
+            }
+        })
     }
 
     static create (signature: string = 'command', action?: Types.Action) {
         return new this(signature, action)
+    }
+
+    /**
+     * set commandName
+     *
+     * @param {string} name
+     * @memberof Command
+     */
+    setName (name: string) {
+        this.name = name
+    }
+
+    /**
+     * add version option
+     *
+     * @param {string} version
+     * @param {string} [signature='--V|version']
+     * @returns
+     * @memberof Command
+     */
+    setVersion (version: string, signature = '--V|version') {
+        this.version = version
+        this.addOption(signature, {
+            callback: (v) => {
+                if (v) {
+                    console.log(this.version)
+                    process.exit(0)
+                }
+            }
+        })
+        return this
     }
 
     /**
@@ -165,8 +212,9 @@ export class Command {
      * @param {Types.Action} func
      * @memberof Command
      */
-    action (func: Types.Action) {
+    setAction (func: Types.Action): this {
         this._action = func
+        return this
     }
 
     /**
@@ -178,48 +226,16 @@ export class Command {
      */
     execute (argv = process.argv.slice(2)) {
         if (!this._action) {
-            throw new Types.DefinationError('command action is un bind')
-        }
-        if (argv.indexOf(this._customHelpOption) > -1) {
-            return this.printHelp()
+            throw new Types.DefinationError('no action defined')
         }
         const raw = this.parseArgv(argv)
         const args = this.processArgs(raw.args)
         const options = this.processOptions(raw.options)
-        return this._action({ args, options, command: this })
+
+        return this._action({ args, options })
     }
 
-    /**
-     * define a commond with signature
-     *
-     * @param {string} signature
-     * @returns
-     * @memberof Command
-     */
-    signature (signature: string) {
-        const nameMatch = signature.match(/^\s*([a-z][-a-z0-9:_]+)/i)
-        if (nameMatch) {
-            this.name = nameMatch[1]
-        } else {
-            this.name = 'command'
-        }
-        const matches = signature.match(/\{\s*[^}]+\s*}/g) || []
-        for (let s of matches) {
-            const exp = s.substring(1, s.length - 1)
-            if (exp[0] === '-') {
-                this.addOption(exp)
-            } else {
-                this.addArg(exp)
-            }
-        }
-        const rest = signature.replace(/\{\s*[^}]+\s*}/g, '')
-            .replace(/^\s*([a-z][-a-z0-9:_]+)/i, '')
-            .trim()
-        if (rest.length > 0) {
-            this.description = rest
-        }
-        return this
-    }
+
     /**
      * add an option definition with signature
      *
@@ -271,8 +287,8 @@ export class Command {
     addArg (signature: string, part?: Partial<Types.ArgumentDefinition>) {
         const d = Object.assign(Types.parseArgumentSinagure(signature))
         const args = Object.keys(this.args).map(k => this.args[k])
-        if (d.isArray && args.filter(d => d.isArray).length > 0) {
-            throw new Types.DefinationError('only one args can be array type')
+        if (args.filter(d => d.isOptional || d.isArray).length > 0) {
+            throw new Types.DefinationError('array or optianal argument must be last')
         }
         if (this.args[d.name]) {
             throw new Types.DefinationError('duplicate args: ' + d.name)
@@ -294,7 +310,7 @@ export class Command {
             .filter(s => /^--/.test(s)).map(s => this.options[s])
         const argsSignature = args.map(d => d.getSignatureName()).join(' ')
         const optionsSinature = options.length > 0 ? '[options]' : ''
-        let help = `${colors.yellow('Usage:')}\n  ${this.name} ${optionsSinature} ${argsSignature}`
+        let help = `${colors.yellow('Usage:')}\n  ${this.name || 'command'} ${optionsSinature} ${argsSignature}`
         if (args.length > 0) {
             const argsHelps = args.map(d => '  ' + d.getHelp()).join('\n')
             help += `\n\n${colors.yellow('Arguments:')}\n${argsHelps}`
@@ -302,6 +318,9 @@ export class Command {
         if (options.length > 0) {
             const optionsHelp = options.map(d => '  ' + d.getHelp()).join('\n')
             help += `\n\n${colors.yellow('options:')}\n${optionsHelp}`
+        }
+        if (this.description) {
+            help += `\n\n${colors.yellow('Description:')}\n  ${this.description}`
         }
         return help + '\n'
     }
@@ -322,15 +341,6 @@ export class Command {
         }
     }
 
-    /**
-     * return commond description for group commond
-     *
-     * @returns
-     * @memberof Command
-     */
-    getGroupDescriptionText () {
-        return colors.green(strWidth(this.name, 30)) + this.description
-    }
 
     /**
      * remove default --help option 
@@ -339,6 +349,7 @@ export class Command {
      */
     removeHelpOption () {
         this._customHelp = false
+        return this
     }
 
     /**
@@ -351,6 +362,31 @@ export class Command {
     customHelp (s: string | ((origin: string) => string), option = '--help') {
         this._customHelp = s
         this._customHelpOption = '--help'
+        return this
+    }
+
+    protected parseSignature (signature: string) {
+        const nameMatch = signature.match(/^\s*([a-z][-a-z0-9:_]+)/i)
+        if (nameMatch) {
+            this.name = nameMatch[1]
+        }
+        const matches = signature.match(/\{\s*[^}]+\s*}/g) || []
+        for (let s of matches) {
+            const exp = s.substring(1, s.length - 1)
+            if (exp[0] === '-') {
+                this.addOption(exp)
+            } else {
+                this.addArg(exp)
+            }
+        }
+
+        const rest = signature.replace(/^\s*([a-z][-a-z0-9:_]+)/i, '')
+            .replace(/\{\s*[^}]+\s*}/g, '')
+            .trim()
+        if (rest.length > 0) {
+            this.description = rest
+        }
+        return this
     }
 
     protected parseArgv (argv: string[]) {
@@ -408,41 +444,42 @@ export class Command {
                 }
                 args[d.name] = d.transform(v)
             }
-            if (d.validate) {
-                d.validate(args[d.name])
-            }
         }
         return args
     }
     protected processOptions (optionsRaw: any) {
         const options = {} as any
-        Object.keys(this.options)
+        const defs = Object.keys(this.options)
             .filter(s => /^--/.test(s))
             .map(s => this.options[s])
-            .forEach(d => {
-                const v = optionsRaw[d.name]
-                if (!d.isBoolean && !v && !d.isOptional && !d.default) {
-                    throw new Types.ExecuteError('require option: ' + d.getSignatureName())
-                }
-                const value = v || d.default
-                options[d.name] = d.transform(value)
-                if (d.validate) {
-                    d.validate(options[d.name])
-                }
-                if (d.callback) {
-                    d.callback(options[d.name])
-                }
-            })
+        for (let d of defs) {
+            const v = optionsRaw[d.name]
+            if (!d.isBoolean && !v && !d.isOptional && !d.default) {
+                throw new Types.ExecuteError('require option: ' + d.getSignatureName())
+            }
+            const value = v || d.default
+            options[d.name] = d.transform(value)
+            if (d.callback) {
+                d.callback(options[d.name])
+            }
+        }
         return options
     }
 }
 
 export class GroupCommand {
     protected commands = {} as { [k: string]: Command }
-    options = {} as { [k: string]: Types.OptionDefinition }
+    protected options = {} as { [k: string]: Types.OptionDefinition }
 
     constructor() {
-        // this.addOption('--help : get this help message')
+        this.addOption('--help : get this help message', {
+            callback: (v) => {
+                if (v) {
+                    this.printHelp()
+                    process.exit(0)
+                }
+            }
+        })
     }
     /**
      * add a sub commond with Command instance or creator
@@ -451,7 +488,7 @@ export class GroupCommand {
      * @returns {this}
      * @memberof GroupCommand
      */
-    addCommand (v: Command | (() => Command)): this
+    addCommand (v: Command | ((g: GroupCommand) => Command)): this
 
     /**
      * add a commond with signature
@@ -462,17 +499,19 @@ export class GroupCommand {
      * @memberof GroupCommand
      */
     addCommand (v: string, action: Types.Action): this
-    addCommand (v: string | Command | (() => Command), action?: Types.Action): this {
+    addCommand (v: string | Command | ((g: GroupCommand) => Command), action?: Types.Action): this {
         let command!: Command
         if (typeof v === 'string') {
-            command = new Command(v)
-            command.action(action!)
+            command = new Command(v, action)
         } else if (typeof v === 'function') {
-            command = v()
+            command = v(this)
         } else if (v instanceof Command) {
             command = v
         } else {
             throw new Types.DefinationError('unsupport value')
+        }
+        if (!command.name) {
+            throw new Types.DefinationError('command should has name when binding to GroupCommand')
         }
         this.commands[command.name] = command
         return this
@@ -519,7 +558,7 @@ export class GroupCommand {
         }
         const commandsHelp = Object.keys(this.commands)
             .map(k => this.commands[k])
-            .map(c => '  ' + c.getGroupDescriptionText())
+            .map(c => '  ' + this.getSubCommondDescription(c))
             .join('\n')
         return help + `\n\n${colors.yellow('Available commands:')}\n${commandsHelp}\n`
     }
@@ -535,7 +574,7 @@ export class GroupCommand {
     }
 
     /**
-     * excute the commond
+     * execute the commond
      *
      * @param {*} [argv=process.argv.slice(2)]
      * @returns
@@ -543,17 +582,25 @@ export class GroupCommand {
      */
     execute (argv = process.argv.slice(2)) {
         const raw = this.parseArgvUntilCommand(argv)
-        if (raw.options.help) {
-            return this.printHelp()
-        }
+        this.processOptions(raw.options)
         const sub = raw.args[0]
         const command = this.commands[sub]
         if (!command) {
             throw new Types.ExecuteError('un support sub commond , use --help to get help')
         }
-        this.processOptions(raw.options)
         return command.execute(raw.restArgv)
     }
+
+    /**
+     * return commond description for group commond
+     *
+     * @returns
+     * @memberof Command
+     */
+    protected getSubCommondDescription (c: Command) {
+        return colors.green(strWidth(c.name!, 30)) + c.description
+    }
+
 
     protected processOptions (optionsRaw: any) {
         const options = {} as any
@@ -567,9 +614,6 @@ export class GroupCommand {
                 }
                 const value = v || d.default
                 options[d.name] = d.transform(value)
-                if (d.validate) {
-                    d.validate(options[d.name])
-                }
                 if (d.callback) {
                     d.callback(options[d.name])
                 }
@@ -618,3 +662,14 @@ export class GroupCommand {
         }
     }
 }
+export const CommandBuilder = {
+    command (signature: string, action?: Types.Action) {
+        return new Command(signature, action)
+    },
+    groupCommand () {
+        return new GroupCommand()
+    }
+}
+
+
+

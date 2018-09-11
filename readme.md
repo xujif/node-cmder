@@ -1,121 +1,275 @@
 ### Command line tools for Node.js & Typescript
-easily generate your command with commond signature like [laravel artisan](https://laravel.com/docs/5.7/artisan)
+easily generate your command string signature.
+ - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond signature
+ - group command (sub commond) support
 
-## Example
+
+## Example signature
 ```Typescript
-import { Command } from 'node-cmder'
-const signature = '{name} {--bool-flag} {--A|age=10} {--T|tags?=*} some description'
-Command.create(signature)
-       .execute(process.argv.slice(2))
-
+// test.js
+import { CommandBuilder } from 'node-cmder'
+const signature = `{name : arg} {--bool-flag : a bool flag} {--A|age=10 : option with default } commond description`
+CommandBuilder.command(signature)
+              .setAction(({ args, options }) => {
+                 console.log(args, options)
+              })
+              .execute()
 ```
-then run with sheel
+then run it
 ```bash
-node test.js joe --bool-flag -A 20 --tags tsgs1 --T tags2
+$ node test.js --help  
+Usage:
+  command [options] <name>
+
+Arguments:
+  <name>                        arg
+
+options:
+  --bool-flag                   a bool flag
+  -A, --age[=10]                option with default
+
+Description:
+  commond description
+
+$ node test.js joe --bool-flag -A 20
+
+{ name: 'joe' } { 'bool-flag': true, age: '20' }
 ```
 
 ## Usage
-more usages are in src/tests.ts
-```Typescript
-import { ConsoleManager,Option,Arguments,Command } from '.'
+### commond signature
+```commond {arg1} {arg2} {arg3*} {--O|option} description```
+- command name is omissible when not in group commond
+- array arg or optional arg **must** be last arguemnt
+- option shortcut or name can not duplicated
 
-const manager = new ConsoleManager()
-// define a cli with decorators
-class TestOption {
-    @Option( { flag:'n' })
-    name: string
-    @Arguments()
-    who: string
-}
-@Command({
-    name: 'test'
-})
-class TestCommand {
-    constructor(protected param: TestOption) {
-
-    }
-
-    handle () {
-        console.log(this.param)
-    }
-}
-// add a command with class
-manager.addClassCommand(TestCommand)
-
-const cmd = {
-    name: 'test2',
-    options: [
-        {
-            name: 'name',
-            type: String,
-            description: 'name'
-        }, {
-            name: 'who',
-            isArg: true,
-            description: 'witch one can be choose'
-        }
-    ],
-    handle: (param: any) => {
-        console.log(param)
-    }
-}
-manager.addCommand(cmd)
-manager.execute()
-// usage :
-// node entry.js test who --name name
+### Option parsing
 ```
-### API
+{--bool}                         //  boolean option
+{--bool : this is boolean}       //  option with description
+{--B|bool}                       //  option with shortcut
+{--version=}                     //  option need value (required)
+{--version=10}                   //  option with default value
+{--version="has blank"}          //  option with default value contains blank
+{--version?=}                    //  option need value (optional)
+{--tags=*}                       //  array option
+{--tags?=*}                      //  array option (optional)
+
+```
+### argument parsing  
+
+```
+{arg}                        // arg
+{arg?}                       // optional arg
+{arg*}                       // array arg
+{version?=}                  //  option need value (optional)
+{tags=*}                     //  array arg
+{tags?=*}                    //  array arg (optional)
+{arg : this is arg}          //  arg with description
+{arg=10}                     //  arg with default value
+{arg="has blank"}            //  arg with default value contains blank
+
+```
+### special option
+- `---help` enable by default. show commond help. call `.removeHelpOption()` to disable it or call `.customHelp()` to customized it.
+- `---V|version`  disable by default. call `.setVersion()` to enable.
+
+## Api
+### CommandBuilder
+- `.command(signature: string, action?: Types.Action | undefined): Command;`
+build a simple commond
+- `.groupCommand(): GroupCommand;` 
+build a group commond with can add sub commonds
+### Command & GroupCommand
+- `.execute (argv = process.argv.slice(2))` execute the commond. return action result
+- `.printHelp()` print the help with console.log  
+- `.getHelpText()` get the help text
+- `.addOption()` add the extra option 
+- `.addArg()` add the extra argument (only Command)
+- more api are in [Section Interfaces](#interfaces)
+
+## Examples
+### build command step by step
+`.addArg` or `.addOption` method does not need `{`  `}` 
 ```Typescript
-// command class definition
-export interface CommandInterface {
-    handle (): number | void | Promise<Number> | Promise<void>
-}
-export type ConsoleCommandClass = { new(opt: any): CommandInterface } & Function
-// manager 
-export class ConsoleManager {
+CommandBuilder.command('test {name : arg}')
+    .addArg('name2')
+    .addOption('--A|age')
+    .setVersion('2.0.0')
+    .setAction(({ args, options }) => {
+        console.log(args, options)
+    })
+```
+### customHelp
+`.customHelp` accept 2 types argument
+- `string` print the string instead origin help
+- `function` print the ret of function and pass orgin help as first argument
+
+```Typescript
+CommandBuilder.command('test {name : arg}')
+    .addArg('name2')
+    .addOption('--A|age=')
+    .setVersion('2.0.0')
+    .customHelp((origin) => {
+        return origin + `\nExample:\n  node test.js  joe name 2 -A=20 --help`
+    })
+    .setAction(({ args, options }) => {
+        console.log(args, options)
+    })
+    .execute()
+```
+### group commond
+`.addCommand` accept a signature and action or commond instance
+```Typescript
+CommandBuilder.groupCommand()
+    .addCommand('test1 {name : arg}', ({ args, options }) => {
+        console.log(args, options)
+    })
+    .addCommand((g) => {
+        return CommandBuilder.command('test2 {name : arg}')
+            .setAction(({ args, options }) => {
+                console.log(args, options)
+            })
+    })
+    .execute()
+```
+
+
+
+
+### <a name="interfaces">Interfaces</a>
+```Typescript
+class GroupCommand{
     /**
-     * add a class command
+     * add a sub commond with Command instance or creator
      *
-     * @param {ConsoleCommandClass} cls
-     * @memberof ConsoleManager
+     * @param {(Command | (() => Command))} v
+     * @returns {this}
+     * @memberof GroupCommand
      */
-    addClassCommand (cls: ConsoleCommandClass): this
+    addCommand(v: Command | (() => Command)): this;
     /**
-     * add a commond
+     * add a commond with signature
      *
-     * @param {ConsoleCommand} cmd
-     * @memberof ConsoleManager
+     * @param {string} v
+     * @param {Types.Action} action
+     * @returns {this}
+     * @memberof GroupCommand
      */
-    addCommand (cmd: ConsoleCommand): this 
+    addCommand(v: string, action: Types.Action): this;
     /**
-     * excute with argv (default: process.argv.slice(2))
+     *  add an option definition with signature
+     *
+     * @param {string} signature
+     * @param {Partial<Types.OptionDefinition>} [part]
+     * @returns
+     * @memberof GroupCommand
+     */
+    addOption(signature: string, part?: Partial<Types.OptionDefinition>): this;
+    /**
+     * get help text but not print
+     *
+     * @returns
+     * @memberof GroupCommand
+     */
+    getHelpText(): string;
+    /**
+     * print help text with console.log
+     *
+     * @returns
+     * @memberof GroupCommand
+     */
+    printHelp(): void;
+    /**
+     * execute the commond
      *
      * @param {*} [argv=process.argv.slice(2)]
      * @returns
-     * @memberof ConsoleManager
+     * @memberof GroupCommand
      */
-    execute (argv = process.argv.slice(2)): number|void|Promise<number|void>
-}
+    execute(argv?: string[]): any;
 
-// command definition
-export interface ConsoleCommand {
-    name: string
-    description?: string
-    options?: OptionDefinition[]
-    withoutHelp?: boolean
-    handle: (param: any) => void | number | Promise<void | number>
 }
+class Command{
 
-// Option definition
-export interface OptionDefinition {
-    name: string
-    flag?: string
-    optional?: boolean
-    description?: string
-    default?: string | boolean | number
-    isArray?: boolean
-    isArg?: boolean                          
-    prop?: string
-    type?: NumberConstructor | StringConstructor | BooleanConstructor
+    /**
+     * add version option
+     *
+     * @param {string} version
+     * @param {string} [signature='--V|version']
+     * @returns
+     * @memberof Command
+     */
+   setVersion(version: string, signature?: string): this;
+    /**
+     * set the commond action
+     *
+     * @param {Types.Action} func
+     * @memberof Command
+     */
+    setAction(func: Types.Action): this;
+    /**
+     * execute
+     *
+     * @param {*} [argv=process.argv.slice(2)]
+     * @returns
+     * @memberof Command
+     */
+    execute(argv?: string[]): any;
+    /**
+     * add an option definition with signature
+     *
+     * @param {string} signature
+     * @param {Partial<Types.OptionDefinition>} [part]
+     * @returns
+     * @memberof Command
+     */
+    addOption(signature: string, part?: Partial<Types.OptionDefinition>): this;
+    /**
+     * merge option meta
+     *
+     * @param {string} name
+     * @param {Partial<Types.OptionDefinition>} [part]
+     * @returns
+     * @memberof Command
+     */
+    mergeOption(name: string, part?: Partial<Types.OptionDefinition>): this;
+    /**
+     * add an argument definition
+     *
+     * @param {string} signature
+     * @param {Partial<Types.ArgumentDefinition>} [part]
+     * @returns
+     * @memberof Command
+     */
+    addArg(signature: string, part?: Partial<Types.ArgumentDefinition>): this;
+    /**
+     * get help text but not print
+     *
+     * @returns
+     * @memberof GroupCommand
+     */
+    getHelpText(): string;
+    /**
+     * print help text with console.log
+     *
+     * @returns
+     * @memberof GroupCommand
+     */
+    printHelp(): void;
+    /**
+     * remove default --help option
+     *
+     * @memberof Command
+     */
+    removeHelpOption(): this;
+    /**
+     * custom help text
+     *
+     * @param {(string | ((origin: string) => string))} s
+     * @param {string} [option='--help']
+     * @memberof Command
+     */
+    customHelp(s: string | ((origin: string) => string), option?: string): this;
 }
 ```

@@ -9,29 +9,31 @@ describe('command', () => {
         const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
         assert.equal(c.name, 'test')
         assert.equal(c.description, 'command description')
-        assert.equal(c.args['name'].name, 'name')
-        assert.equal(c.args['name'].isArray, false)
-        assert.equal(c.args['name'].isOptional, false)
-        assert.equal(c.options['--bool'].name, 'bool')
-        assert.equal(c.options['--bool'].isOptional, true)
-        assert.equal(c.options['--bool'].isBoolean, true)
-        assert.equal(c.options['--age'].name, 'age')
-        assert.equal(c.options['--age'].isOptional, true)
-        assert.equal(c.options['--age'].isBoolean, false)
-        assert.equal(c.options['--age'].default, 10)
-        assert.equal(c.options['-A'].name, 'age')
-        assert.equal(c.options['-A'].isOptional, true)
-        assert.equal(c.options['-A'].isBoolean, false)
-        assert.equal(c.options['-A'].default, 10)
-        assert.equal(c.options['--tags'].name, 'tags')
-        assert.equal(c.options['--tags'].isOptional, true)
-        assert.equal(c.options['--tags'].isBoolean, false)
-        assert.equal(c.options['--tags'].isArray, true)
-        assert.equal(c.options['--tags'].default.length, 0)
+        const args = (c as any).args
+        const options = (c as any).options
+        assert.equal(args['name'].name, 'name')
+        assert.equal(args['name'].isArray, false)
+        assert.equal(args['name'].isOptional, false)
+        assert.equal(options['--bool'].name, 'bool')
+        assert.equal(options['--bool'].isOptional, true)
+        assert.equal(options['--bool'].isBoolean, true)
+        assert.equal(options['--age'].name, 'age')
+        assert.equal(options['--age'].isOptional, true)
+        assert.equal(options['--age'].isBoolean, false)
+        assert.equal(options['--age'].default, 10)
+        assert.equal(options['-A'].name, 'age')
+        assert.equal(options['-A'].isOptional, true)
+        assert.equal(options['-A'].isBoolean, false)
+        assert.equal(options['-A'].default, 10)
+        assert.equal(options['--tags'].name, 'tags')
+        assert.equal(options['--tags'].isOptional, true)
+        assert.equal(options['--tags'].isBoolean, false)
+        assert.equal(options['--tags'].isArray, true)
+        assert.equal(options['--tags'].default.length, 0)
     });
     it('call command', async (done) => {
         const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
-        c.action((o) => {
+        c.setAction((o) => {
             assert.equal(o.args.name, 'joe')
             assert.equal(o.options.bool, false)
             assert.strictEqual(o.options.age, '20')
@@ -42,7 +44,7 @@ describe('command', () => {
     })
     it('call command 2', async (done) => {
         const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
-        c.action((o) => {
+        c.setAction((o) => {
             assert.strictEqual(o.args.name, 'joe')
             assert.strictEqual(o.options.bool, false)
             assert.strictEqual(o.options.age, '20')
@@ -53,10 +55,23 @@ describe('command', () => {
         })
         c.execute(['joe', '-A', '20', '--tags', 'tag1', '--tags', 'tag2'])
     })
+    it('call command 3', async (done) => {
+        const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
+        c.setAction((o) => {
+            assert.strictEqual(o.args.name, 'joe')
+            assert.strictEqual(o.options.bool, false)
+            assert.strictEqual(o.options.age, '20')
+            assert(Array.isArray(o.options.tags))
+            assert.equal(o.options.tags[0], 'tag1')
+            assert.equal(o.options.tags[1], 'tag2')
+            done()
+        })
+        c.execute(['joe', '-A=20', '--tags=tag1', '--tags=tag2'])
+    })
     it('test option merge and transform', async (done) => {
         const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
         c.mergeOption('age', { transform: parseInt })
-        c.action((o) => {
+        c.setAction((o) => {
             assert.strictEqual(o.args.name, 'joe')
             assert.strictEqual(o.options.bool, false)
             assert.strictEqual(o.options.age, 20)
@@ -77,7 +92,7 @@ describe('command', () => {
             }
         })
         assert.strictEqual(v, 1, 'value = 1 before execute')
-        c.action((o) => {
+        c.setAction((o) => {
             assert.strictEqual(o.args.name, 'joe')
             assert.strictEqual(o.options.bool, false)
             assert.strictEqual(o.options.age, 20)
@@ -93,13 +108,13 @@ describe('command', () => {
         const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
         c.mergeOption('age', {
             transform: parseInt,
-            validate: (value) => {
+            callback: (value) => {
                 if (value > 10) {
                     throw new Error('age should less then 10')
                 }
             }
         })
-        c.action((o) => {
+        c.setAction((o) => {
             assert.fail('should not access')
             done()
         })
@@ -117,7 +132,7 @@ describe('group command', () => {
         const group = new GroupCommand()
         const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
         group.addCommand(c)
-        c.action((o) => {
+        c.setAction((o) => {
             assert.equal(o.args.name, 'joe')
             assert.equal(o.options.bool, false)
             assert.strictEqual(o.options.age, '20')

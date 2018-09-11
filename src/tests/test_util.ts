@@ -8,13 +8,20 @@ const { parseArgumentSinagure, parseOptionSignature } = Types
 
 describe('option', () => {
 
-    it('parse option: boolean', async () => {
+    it('parse option: simple', async () => {
         const v1 = parseOptionSignature('--V|version')
         assert(!v1.isArray, 'should not be array')
         assert(v1.isOptional, 'should be optianal')
         assert(v1.isBoolean, 'should be boolean')
         assert.equal(v1.name, 'version', 'option name')
         assert.equal(v1.flag, 'V', 'option flag')
+    });
+    it('parse option: boolean', async () => {
+        const v1 = parseOptionSignature('--bool-flag')
+        assert(!v1.isArray, 'should not be array')
+        assert(v1.isOptional, 'should be optianal')
+        assert(v1.isBoolean, 'should be boolean')
+        assert.equal(v1.name, 'bool-flag', 'option name')
     });
     it('parse option: required', async () => {
         const v1 = parseOptionSignature('--queue=  : queue name')
@@ -83,7 +90,7 @@ describe('argument', () => {
         assert.equal(v1.name, 'queue', 'argument name')
     });
     it('parse argument: optional', async () => {
-        const v1 = parseArgumentSinagure('--queue?=  : queue name')
+        const v1 = parseArgumentSinagure('queue?=  : queue name')
         assert(!v1.isArray, 'should not be array')
         assert.equal(v1.description, 'queue name', 'should with description')
         assert(v1.isOptional, 'should  be optianal')
@@ -91,7 +98,7 @@ describe('argument', () => {
         assert.equal(v1.name, 'queue', 'argument name')
     });
     it('parse argument: with default value', async () => {
-        const v1 = parseArgumentSinagure('--name=joe : default is joe')
+        const v1 = parseArgumentSinagure('name=joe : default is joe')
         assert(!v1.isArray, 'should not be array')
         assert.equal(v1.description, 'default is joe', 'should with description')
         assert(v1.isOptional, 'should  be optianal')
@@ -99,7 +106,7 @@ describe('argument', () => {
         assert.equal(v1.name, 'name', 'argument name')
     });
     it('parse argument: with default value(with blank)', async () => {
-        const v1 = parseArgumentSinagure('--name="joe green" : default is "joe green"')
+        const v1 = parseArgumentSinagure('name="joe green" : default is "joe green"')
         assert(!v1.isArray, 'should not be array')
         assert.equal(v1.description, 'default is "joe green"', 'should with description')
         assert(v1.isOptional, 'should  be optianal')
