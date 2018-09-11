@@ -1,7 +1,18 @@
 ### Command line tools for Node.js & Typescript
-two ways to define a cli command:  
-- js object
-- with decorators
+easily generate your command with commond signature like [laravel artisan](https://laravel.com/docs/5.7/artisan)
+
+## Example
+```Typescript
+import { Command } from 'node-cmder'
+const signature = '{name} {--bool-flag} {--A|age=10} {--T|tags?=*} some description'
+Command.create(signature)
+       .execute(process.argv.slice(2))
+
+```
+then run with sheel
+```bash
+node test.js joe --bool-flag -A 20 --tags tsgs1 --T tags2
+```
 
 ## Usage
 more usages are in src/tests.ts
