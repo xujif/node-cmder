@@ -2,7 +2,7 @@ import 'mocha';
 
 import assert from 'assert';
 
-import { Command, GroupCommand } from '../command';
+import { Command, GroupCommand } from '../src/command';
 
 describe('command', () => {
     it('check define meta', async () => {

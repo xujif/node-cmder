@@ -2,7 +2,7 @@ import 'mocha';
 
 import assert from 'assert';
 
-import { Types } from '../command';
+import { Types } from '../src/command';
 
 const { parseArgumentSinagure, parseOptionSignature } = Types
 
