@@ -1,5 +1,6 @@
 import colors from 'colors/safe';
 import Debug from 'debug';
+import { basename } from 'path';
 
 const debug = Debug('node-cmder')
 
@@ -149,41 +150,15 @@ export namespace Types {
 }
 
 
-export class Command {
-    name?: string
+export abstract class BaseCommand {
+    name: string = ''
     description: string = ''
-    protected options = {} as { [k: string]: Types.OptionDefinition }
-    protected args = {} as { [k: string]: Types.ArgumentDefinition }
-    protected version = '0.0.0'
-    protected _action !: Types.Action
-    protected _customHelp?: false | string | ((origin: string) => string) = false
-    protected _customHelpOption = '--help'
+    version = '0.0.0'
+    options = {} as { [k: string]: Types.OptionDefinition }
 
-    constructor(signature: string = 'command', action?: Types.Action) {
-        this.parseSignature(signature)
-        if (action) {
-            this._action = action
-        }
-        this.addOption('--help : print this help message', {
-            callback: (v) => {
-                if (v) {
-                    this.printHelp()
-                    process.exit(0)
-                }
-            }
-        })
-    }
+    abstract run (argv: string[]): any
+    abstract getHelpText (): string
 
-    static create (signature: string = 'command', action?: Types.Action) {
-        return new this(signature, action)
-    }
-
-    /**
-     * set commandName
-     *
-     * @param {string} name
-     * @memberof Command
-     */
     setName (name: string) {
         this.name = name
     }
@@ -209,6 +184,127 @@ export class Command {
         return this
     }
 
+
+    /**
+     * print help text with console.log
+     *
+     * @returns
+     * @memberof GroupCommand
+     */
+    printHelp () {
+        console.log(this.getHelpText())
+    }
+
+
+    /**
+     *  add an option definition with signature
+     *
+     * @param {string} signature
+     * @param {Partial<Types.OptionDefinition>} [part]
+     * @returns
+     * @memberof GroupCommand
+     */
+    addOption (signature: string, part?: Partial<Types.OptionDefinition>) {
+        const d = Object.assign(Types.parseOptionSignature(signature), part)
+        const keys = ['--' + d.name]
+        if (d.flag) {
+            keys.push('-' + d.flag)
+        }
+        for (let k of keys) {
+            if (this.options[k]) {
+                throw new Types.DefinationError('duplicate option: ' + k)
+            }
+            this.options[k] = d
+        }
+        return this
+    }
+
+    /**
+     * merge option meta
+     *
+     * @param {string} name
+     * @param {Partial<Types.OptionDefinition>} [part]
+     * @returns
+     * @memberof Command
+     */
+    mergeOption (name: string, part?: Partial<Types.OptionDefinition>) {
+        if (this.options['--' + name]) {
+            Object.assign(this.options['--' + name], part)
+        }
+        return this
+    }
+
+
+    /**
+     * execute command
+     *
+     * @param {*} [argv=process.argv.slice(2)]
+     * @returns
+     * @memberof Command
+     */
+    async execute (argv = process.argv.slice(2)) {
+        debug('command execute', argv)
+        try {
+            const ret = await this.run(argv)
+            process.exit(+ret || 0)
+        } catch (e) {
+            if (e instanceof Types.ExecuteError) {
+                const message = `${colors.red('Error:')}\n  ${colors.white(e.message)}`
+                    + `\n\n${colors.yellow('Help:')}\n  use --help for more information`
+                console.log(message)
+                process.exit(e.exitCode)
+            } else {
+                const message = `${colors.red('Exception Occurred:')}\n\n  ${colors.yellow(e)}`
+                console.log(message)
+                process.exit(-1)
+            }
+        }
+    }
+
+    protected processOptions (optionsRaw: any) {
+        const options = {} as any
+        Object.keys(this.options)
+            .filter(s => /^--/.test(s))
+            .map(s => this.options[s])
+            .forEach(d => {
+                const v = optionsRaw[d.name]
+                if (!d.isBoolean && !v && !d.isOptional && !d.default) {
+                    throw new Types.ExecuteError('require option: ' + d.getSignatureName())
+                }
+                const value = v || d.default
+                options[d.name] = d.transform(value)
+                if (d.callback) {
+                    d.callback(options[d.name])
+                }
+            })
+        return options
+    }
+}
+
+export class Command extends BaseCommand {
+    protected args = {} as { [k: string]: Types.ArgumentDefinition }
+    protected _action !: Types.Action
+    protected _customHelp?: false | string | ((origin: string) => string) = false
+    protected _customHelpOption = '--help'
+
+    constructor(signature: string = 'command', action?: Types.Action) {
+        super()
+        this.parseSignature(signature)
+        if (action) {
+            this._action = action
+        }
+        this.addOption('--help : print this help message', {
+            callback: (v) => {
+                if (v) {
+                    this.printHelp()
+                    process.exit(0)
+                }
+            }
+        })
+    }
+
+
+
     /**
      * set the commond action
      *
@@ -233,67 +329,7 @@ export class Command {
         return this._action({ args, options })
     }
 
-    /**
-     * 
-     *
-     * @param {*} [argv=process.argv.slice(2)]
-     * @returns
-     * @memberof Command
-     */
-    execute (argv = process.argv.slice(2)) {
-        debug('command execute', argv)
-        try {
-            return this.run(argv)
-        } catch (e) {
-            if (e instanceof Types.ExecuteError) {
-                const message = `${colors.red('Error:')}\n  ${colors.white(e.message)}`
-                    + `\n\n${colors.yellow('Help:')}\n  use --help for more information`
-                console.log(message)
-                process.exit(e.exitCode)
-            }
-            throw e
-        }
-    }
 
-
-    /**
-     * add an option definition with signature
-     *
-     * @param {string} signature
-     * @param {Partial<Types.OptionDefinition>} [part]
-     * @returns
-     * @memberof Command
-     */
-    addOption (signature: string, part?: Partial<Types.OptionDefinition>) {
-        const d = Object.assign(Types.parseOptionSignature(signature), part)
-        const keys = ['--' + d.name]
-        if (d.flag) {
-            keys.push('-' + d.flag)
-        }
-        for (let k of keys) {
-            if (this.options[k]) {
-                throw new Types.DefinationError('duplicate option: ' + k)
-            }
-            this.options[k] = d
-        }
-        return this
-    }
-
-
-    /**
-     * merge option meta
-     *
-     * @param {string} name
-     * @param {Partial<Types.OptionDefinition>} [part]
-     * @returns
-     * @memberof Command
-     */
-    mergeOption (name: string, part?: Partial<Types.OptionDefinition>) {
-        if (this.options['--' + name]) {
-            Object.assign(this.options['--' + name], part)
-        }
-        return this
-    }
 
 
     /**
@@ -344,23 +380,6 @@ export class Command {
         }
         return help + '\n'
     }
-
-    /**
-     * print help text with console.log
-     *
-     * @returns
-     * @memberof GroupCommand
-     */
-    printHelp () {
-        if (!this._customHelp) {
-            console.log(this.getHelpText())
-        } else if (typeof this._customHelp === 'function') {
-            console.log(this._customHelp(this.getHelpText()))
-        } else {
-            console.log(this._customHelp)
-        }
-    }
-
 
     /**
      * remove default --help option 
@@ -467,32 +486,16 @@ export class Command {
         }
         return args
     }
-    protected processOptions (optionsRaw: any) {
-        const options = {} as any
-        const defs = Object.keys(this.options)
-            .filter(s => /^--/.test(s))
-            .map(s => this.options[s])
-        for (let d of defs) {
-            const v = optionsRaw[d.name]
-            if (!d.isBoolean && !v && !d.isOptional && !d.default) {
-                throw new Types.ExecuteError('require option: ' + d.getSignatureName())
-            }
-            const value = v || d.default
-            options[d.name] = d.transform(value)
-            if (d.callback) {
-                d.callback(options[d.name])
-            }
-        }
-        return options
-    }
 }
 
-export class GroupCommand {
-    name: string = 'entry.js'
-    protected commands = {} as { [k: string]: Command }
-    protected options = {} as { [k: string]: Types.OptionDefinition }
+
+
+export class GroupCommand extends BaseCommand {
+    name: string = basename(process.argv[1])
+    protected commands = {} as { [k: string]: BaseCommand }
 
     constructor() {
+        super()
         this.addOption('--help : get this help message', {
             callback: (v) => {
                 if (v) {
@@ -505,11 +508,11 @@ export class GroupCommand {
     /**
      * add a sub commond with Command instance or creator
      *
-     * @param {(Command | (() => Command))} v
+     * @param {(BaseCommand | (() => BaseCommand))} v
      * @returns {this}
      * @memberof GroupCommand
      */
-    addCommand (v: Command | ((g: GroupCommand) => Command)): this
+    addCommand (v: BaseCommand | ((g: GroupCommand) => BaseCommand)): this
 
     /**
      * add a commond with signature
@@ -520,13 +523,13 @@ export class GroupCommand {
      * @memberof GroupCommand
      */
     addCommand (v: string, action: Types.Action): this
-    addCommand (v: string | Command | ((g: GroupCommand) => Command), action?: Types.Action): this {
-        let command!: Command
+    addCommand (v: string | BaseCommand | ((g: GroupCommand) => BaseCommand), action?: Types.Action): this {
+        let command!: BaseCommand
         if (typeof v === 'string') {
             command = new Command(v, action)
         } else if (typeof v === 'function') {
             command = v(this)
-        } else if (v instanceof Command) {
+        } else if (v instanceof BaseCommand) {
             command = v
         } else {
             throw new Types.DefinationError('unsupport value')
@@ -538,28 +541,6 @@ export class GroupCommand {
         return this
     }
 
-    /**
-     *  add an option definition with signature
-     *
-     * @param {string} signature
-     * @param {Partial<Types.OptionDefinition>} [part]
-     * @returns
-     * @memberof GroupCommand
-     */
-    addOption (signature: string, part?: Partial<Types.OptionDefinition>) {
-        const d = Object.assign(Types.parseOptionSignature(signature), part)
-        const keys = ['--' + d.name]
-        if (d.flag) {
-            keys.push('-' + d.flag)
-        }
-        for (let k of keys) {
-            if (this.options[k]) {
-                throw new Types.DefinationError('duplicate option: ' + k)
-            }
-            this.options[k] = d
-        }
-        return this
-    }
 
 
     /**
@@ -585,15 +566,6 @@ export class GroupCommand {
         return help + `\n\n${colors.yellow('Available commands:')}\n${commandsHelp}\n`
     }
 
-    /**
-     * print help text with console.log
-     *
-     * @returns
-     * @memberof GroupCommand
-     */
-    printHelp () {
-        console.log(this.getHelpText())
-    }
 
     /**
      * execute command
@@ -615,30 +587,7 @@ export class GroupCommand {
         if (!command) {
             throw new Types.ExecuteError(`commond "${sub}" is not defined`)
         }
-        return command.execute(raw.restArgv)
-    }
-
-
-    /**
-     * execute the commond
-     *
-     * @param {*} [argv=process.argv.slice(2)]
-     * @returns
-     * @memberof Command
-     */
-    execute (argv = process.argv.slice(2)) {
-        debug('group command execute', argv)
-        try {
-            return this.run(argv)
-        } catch (e) {
-            if (e instanceof Types.ExecuteError) {
-                const message = `${colors.red('Error:')}\n  ${colors.white(e.message)}`
-                    + `\n${colors.yellow('Help:')}\n  use --help for more information`
-                console.log(message)
-                process.exit(e.exitCode)
-            }
-            throw e
-        }
+        return command.run(raw.restArgv)
     }
 
     /**
@@ -647,29 +596,9 @@ export class GroupCommand {
      * @returns
      * @memberof Command
      */
-    protected getSubCommondDescription (c: Command) {
-        return colors.green(strWidth(c.name!, 30)) + c.description
+    protected getSubCommondDescription (c: BaseCommand) {
+        return colors.green(strWidth(c.name || '<no name>', 30)) + c.description
     }
-
-    protected processOptions (optionsRaw: any) {
-        const options = {} as any
-        Object.keys(this.options)
-            .filter(s => /^--/.test(s))
-            .map(s => this.options[s])
-            .forEach(d => {
-                const v = optionsRaw[d.name]
-                if (!d.isBoolean && !v && !d.isOptional && !d.default) {
-                    throw new Types.ExecuteError('require option: ' + d.getSignatureName())
-                }
-                const value = v || d.default
-                options[d.name] = d.transform(value)
-                if (d.callback) {
-                    d.callback(options[d.name])
-                }
-            })
-        return options
-    }
-
 
     protected parseArgvUntilCommand (argv: string[]) {
         const optionsRaw = {} as any

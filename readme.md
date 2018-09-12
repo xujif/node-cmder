@@ -90,7 +90,11 @@ build a simple commond
 - `.groupCommand(): GroupCommand;` 
 build a group commond with can add sub commonds
 ### Command & GroupCommand
-- `.execute (argv = process.argv.slice(2))` execute the commond. return action result
+- `.execute (argv = process.argv.slice(2))` execute the commond with console.
+- `.run(argv:string[])` run the command. different from `.execute`:  
+    - `.run` does not handle any Error
+    - `.execute` handle and print erros to terminal and exit process after action return.
+
 - `.printHelp()` print the help with console.log  
 - `.getHelpText()` get the help text
 - `.addOption()` add the extra option 
@@ -150,6 +154,7 @@ CommandBuilder.groupCommand()
 
 
 ### <a name="interfaces">Interfaces</a>
+all types are difined in src/command.ts
 ```Typescript
 class GroupCommand{
     /**
@@ -200,6 +205,16 @@ class GroupCommand{
      * @memberof GroupCommand
      */
     execute(argv?: string[]): any;
+
+    /**
+     * add version option
+     *
+     * @param {string} version
+     * @param {string} [signature='--V|version']
+     * @returns
+     * @memberof Command
+     */
+   setVersion(version: string, signature?: string): this;
 
 }
 class Command{

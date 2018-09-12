@@ -12,8 +12,7 @@
         ],
         "lib": [
             "dom",
-            "es2015",
-            "esnext.asynciterable"
+            "es2017"
         ],
         "types": [
             "node"
@@ -23,7 +22,7 @@
         "rootDir": "./src",
         "strict": true,
         "module": "commonjs",
-        "target": "es2015",
+        "target": "es2017",
         "sourceMap": true,
         "emitDecoratorMetadata": true,
         "esModuleInterop": true,
