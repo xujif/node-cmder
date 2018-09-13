@@ -48,6 +48,7 @@ $ node test.js joe --bool-flag -A 20
 - array arg or optional arg **must** be last arguemnt
 - option shortcut or name can not duplicated
 
+
 ### Option parsing
 ```
 {--bool}                     //  boolean option
@@ -80,8 +81,15 @@ $ node test.js joe --bool-flag -A 20
 `.mergeOption('age',{callback:(v)=>console.log(v)})` option callback
 
 ### special option
-- `---help` enable by default. show commond help. call `.removeHelpOption()` to disable it or call `.customHelp()` to customized it.
-- `---V|version`  disable by default. call `.setVersion()` to enable.
+- `---help` enable by default, generate help automately. call `.removeHelpOption()` to disable it or call `.customHelp()` to customize.
+- `---V|version`  disable by default. call `.setVersion(v:string)` to enable.
+
+### Execute command
+`.execute (argv = process.argv.slice(2))` execute the commond with console.  
+Note: **process will exit automately when action return**  
+return "never resolve Promise" to prevent:  
+`return new Promise(()=>{/**/})` or  
+`return KeepRunning()` KeepRunning is exported by node-cmder
 
 ## Api
 ### CommandBuilder
@@ -90,9 +98,8 @@ build a simple commond
 - `.groupCommand(): GroupCommand;` 
 build a group commond with can add sub commonds
 ### Command & GroupCommand
-- `.execute (argv = process.argv.slice(2))` execute the commond with console.
 - `.run(argv:string[])` run the command. different from `.execute`:  
-    - `.run` does not handle any Error
+    - `.run` does not handle any Error,suitable for being called by program
     - `.execute` handle and print erros to terminal and exit process after action return.
 
 - `.printHelp()` print the help with console.log  

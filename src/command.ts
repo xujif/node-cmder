@@ -149,6 +149,17 @@ export namespace Types {
     export type Action = (opt: { args: any, options: any }) => any
 }
 
+/**
+ * keep the command run
+ *
+ * @export
+ * @returns
+ */
+export function KeepRuning () {
+    return new Promise(() => {
+        debug('keep running')
+    })
+}
 
 export abstract class BaseCommand {
     name: string = ''
