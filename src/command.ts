@@ -384,7 +384,7 @@ export class Command extends BaseCommand {
         }
         if (options.length > 0) {
             const optionsHelp = options.map(d => '  ' + d.getHelp()).join('\n')
-            help += `\n\n${colors.yellow('options:')}\n${optionsHelp}`
+            help += `\n\n${colors.yellow('Options:')}\n${optionsHelp}`
         }
         if (this.description) {
             help += `\n\n${colors.yellow('Description:')}\n  ${this.description}`
@@ -568,7 +568,7 @@ export class GroupCommand extends BaseCommand {
         let help = `${colors.yellow('Usage:')}\n node ${this.name} ${optionsSinature} <command> [args...] [command options]`
         if (options.length > 0) {
             const optionsHelp = options.map(d => '  ' + d.getHelp()).join('\n')
-            help += `\n\n${colors.yellow('options:')}\n${optionsHelp}`
+            help += `\n\n${colors.yellow('Options:')}\n${optionsHelp}`
         }
         const commandsHelp = Object.keys(this.commands)
             .map(k => this.commands[k])
