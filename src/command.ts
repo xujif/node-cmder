@@ -52,7 +52,7 @@ export namespace Types {
             return this.flag ? `-${this.flag}, --${this.name}` : '--' + this.name
         }
         getHelp () {
-            let left = this.getSignatureName()
+            let left = this.flag ? `-${this.flag}, --${this.name}` : ' '.repeat(4) + '--' + this.name
             if (!this.isBoolean && typeof this.default !== 'undefined') {
                 left += '[=' + this.default + ']'
             }
