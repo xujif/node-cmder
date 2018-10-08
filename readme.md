@@ -1,5 +1,5 @@
 ### Command line tools for Node.js & Typescript
-easily generate your command with a string signature. 
+Easily generate your command with a string signature. 
   - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond.
 
 
