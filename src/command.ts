@@ -8,6 +8,13 @@ function strWidth(s: string, w: number) {
   return s + ' '.repeat(w - s.length)
 }
 
+function protectedBrace(s: string) {
+  return s.replace('{{', '%7b').replace('}}', '%7d')
+}
+function transBrace(s: string) {
+  return s.replace('%7b', '{').replace('%7d', '}')
+}
+
 export namespace Types {
   export class DefinationError extends Error {
     CODE = 'ERR_COMMAND_DEFINATION_ERROR'
@@ -20,44 +27,55 @@ export namespace Types {
       this.exitCode = exitCode
     }
   }
-
-  export class ArgumentDefinition {
-    name!: string
-    default?: any
-    description: string = ''
-    isOptional = false
-    isArray = false
-    transform(value: any) {
-      return value
-    }
-    getSignatureName() {
-      let s = this.isOptional ? '[' + this.name + ']' : '<' + this.name + '>'
-      if (this.isArray) {
-        s += ' [' + this.name + ' ...]'
-      }
-      return s
-    }
-    getHelp() {
-      let s = this.isArray ? this.name + ' ...' : this.name
-      let left = this.isOptional ? '[' + s + ']' : '<' + s + '>'
-      return strWidth(left, 30) + this.description
-    }
+  export const defaultArg = {
+    description: '',
+    isOptional: false,
+    isArray: false,
   }
 
-  export class OptionDefinition extends ArgumentDefinition {
+  export const defaultOpt = {
+    description: '',
+    isOptional: false,
+    isArray: false,
+    isBoolean: false,
+  }
+
+  export interface ArgumentDefinition {
+    name: string
+    default?: any
+    description: string
+    isOptional?: boolean
+    isArray?: boolean
+    transform?: (v: any) => any,
+
+    // getSignatureName() {
+    //   let s = this.isOptional ? '[' + this.name + ']' : '<' + this.name + '>'
+    //   if (this.isArray) {
+    //     s += ' [' + this.name + ' ...]'
+    //   }
+    //   return s
+    // }
+    // getHelp() {
+    //   let s = this.isArray ? this.name + ' ...' : this.name
+    //   let left = this.isOptional ? '[' + s + ']' : '<' + s + '>'
+    //   return strWidth(left, 30) + this.description
+    // }
+  }
+
+  export interface OptionDefinition extends ArgumentDefinition {
     flag?: string
-    isBoolean = false
-    callback?: (v: any) => void
-    getSignatureName() {
-      return this.flag ? `-${this.flag}, --${this.name}` : '--' + this.name
-    }
-    getHelp() {
-      let left = this.flag ? `-${this.flag}, --${this.name}` : ' '.repeat(4) + '--' + this.name
-      if (!this.isBoolean && typeof this.default !== 'undefined') {
-        left += '[=' + this.default + ']'
-      }
-      return strWidth(left, 30) + this.description
-    }
+    isBoolean?: boolean
+    callback?: (v: any, options: Object) => void
+    // getSignatureName() {
+    //   return this.flag ? `-${this.flag}, --${this.name}` : '--' + this.name
+    // }
+    // getHelp() {
+    //   let left = this.flag ? `-${this.flag}, --${this.name}` : ' '.repeat(4) + '--' + this.name
+    //   if (!this.isBoolean && typeof this.default !== 'undefined') {
+    //     left += '[=' + this.default + ']'
+    //   }
+    //   return strWidth(left, 30) + this.description
+    // }
   }
 
   /**
@@ -72,16 +90,16 @@ export namespace Types {
    * has-defaut=value
    */
   export function parseArgumentSinagure(signature: string) {
+    signature = protectedBrace(signature)
     if (/$\{.+\}^/.test(signature)) {
       signature = signature.substring(1, signature.length - 1)
     }
-    const opt = new ArgumentDefinition()
-    // compatible with laravel signature
+    const opt = { description: '', isOptional: false, isArray: false } as ArgumentDefinition
     let [exp, ...rest] = signature.split(' : ')
     if (/\*|\?/.test(exp) && exp.indexOf('=') === -1) {
       exp = exp.trim().replace(/^([a-z][-\w]+)(\?)?(\*)?$/, "$1$2=$3")
     }
-    opt.description = rest.join(' : ')
+    opt.description = transBrace(rest.join(' : '))
     const m = exp.trim().match(/^([a-z][-\w]+)(\?)?(=.+)?/i)
     if (!m) {
       throw new DefinationError('Unable to determine argument name from signature: ' + signature)
@@ -112,6 +130,8 @@ export namespace Types {
    * @returns
    */
   export function parseOptionSignature(signature: string) {
+    signature = protectedBrace(signature)
+
     if (/$\{.+\}^/.test(signature)) {
       signature = signature.substring(1, signature.length - 1)
     }
@@ -120,8 +140,8 @@ export namespace Types {
     if (!m) {
       throw new DefinationError('Unable to determine option name from signature: ' + signature)
     }
-    const opt = new OptionDefinition()
-    opt.description = rest.join(' : ')
+    const opt = { description: '', isOptional: false, isArray: false, isBoolean: false, } as OptionDefinition
+    opt.description = transBrace(rest.join(' : '))
     const [flag, name] = m[1].split(/\s*\|\s*/)
     if (name) {
       opt.name = name
@@ -166,7 +186,7 @@ export abstract class BaseCommand {
   description: string = ''
   version = '0.0.0'
   options = {} as { [k: string]: Types.OptionDefinition }
-
+  args = {} as { [k: string]: Types.ArgumentDefinition }
   abstract run(argv: string[]): any
   abstract getHelpText(): string
 
@@ -187,7 +207,7 @@ export abstract class BaseCommand {
     this.addOption(signature, {
       callback: (v) => {
         if (v) {
-          console.log(this.version)
+          process.stdout.write(this.version + '\n')
           process.exit(0)
         }
       }
@@ -203,7 +223,7 @@ export abstract class BaseCommand {
    * @memberof GroupCommand
    */
   printHelp() {
-    console.log(this.getHelpText())
+    process.stdout.write(this.getHelpText())
   }
 
 
@@ -278,14 +298,15 @@ export abstract class BaseCommand {
       .filter(s => /^--/.test(s))
       .map(s => this.options[s])
       .forEach(d => {
-        const v = optionsRaw[d.name]
-        if (!d.isBoolean && !v && !d.isOptional && !d.default) {
-          throw new Types.ExecuteError('require option: ' + d.getSignatureName())
+        if (typeof optionsRaw[d.name] === 'undefined' && !d.isOptional) {
+          const sn = d.flag ? `-${d.flag}, --${d.name}` : `--${d.name}`
+          throw new Types.ExecuteError('require option: ' + sn)
         }
-        const value = v || d.default
-        options[d.name] = d.transform(value)
+        const transform = d.transform || function (v) { return v }
+        const value = typeof optionsRaw[d.name] !== 'undefined' ? transform(optionsRaw[d.name]) : d.default
+        options[d.name] = value
         if (d.callback) {
-          d.callback(options[d.name])
+          d.callback(value, options)
         }
       })
     return options
@@ -293,7 +314,6 @@ export abstract class BaseCommand {
 }
 
 export class Command extends BaseCommand {
-  protected args = {} as { [k: string]: Types.ArgumentDefinition }
   protected _action !: Types.Action
 
   constructor(signature: string = 'command', action?: Types.Action) {
@@ -373,15 +393,31 @@ export class Command extends BaseCommand {
     const args = Object.keys(this.args).map(k => this.args[k])
     const options = Object.keys(this.options)
       .filter(s => /^--/.test(s)).map(s => this.options[s])
-    const argsSignature = args.map(d => d.getSignatureName()).join(' ')
+    const argsSignature = args.map(d => {
+      let s = d.isOptional ? '[' + d.name + ']' : '<' + d.name + '>'
+      if (d.isArray) {
+        s += ' [' + d.name + ' ...]'
+      }
+      return s
+    }).join(' ')
     const optionsSinature = options.length > 0 ? '[options]' : ''
     let help = `${colors.yellow('Usage:')}\n  ${this.name || 'command'} ${optionsSinature} ${argsSignature}`
     if (args.length > 0) {
-      const argsHelps = args.map(d => '  ' + d.getHelp()).join('\n')
-      help += `\n\n${colors.yellow('Arguments:')}\n${argsHelps}`
+      const argsHelps = args.map(d => {
+        let s = '  ' + d.isArray ? d.name + ' ...' : d.name
+        let left = d.isOptional ? '[' + s + ']' : '<' + s + '>'
+        return strWidth(left, 30) + d.description
+      }).join('\n')
+      help += `\n\n${colors.yellow('Arguments:')}\n  ${argsHelps}`
     }
     if (options.length > 0) {
-      const optionsHelp = options.map(d => '  ' + d.getHelp()).join('\n')
+      const optionsHelp = options.map(d => {
+        let left = d.flag ? `${' '.repeat(2)}-${d.flag}, --${d.name}` : `${' '.repeat(6)}--${d.name}`
+        if (!d.isBoolean && typeof d.default !== 'undefined') {
+          left += '[=' + d.default + ']'
+        }
+        return strWidth(left, 30) + d.description
+      }).join('\n')
       help += `\n\n${colors.yellow('Options:')}\n${optionsHelp}`
     }
     if (this.description) {
@@ -421,6 +457,7 @@ export class Command extends BaseCommand {
   }
 
   protected parseSignature(signature: string) {
+    signature = protectedBrace(signature)
     const nameMatch = signature.match(/^\s*([a-z][-a-z0-9:_]+)/i)
     if (nameMatch) {
       this.name = nameMatch[1]
@@ -434,12 +471,11 @@ export class Command extends BaseCommand {
         this.addArg(exp)
       }
     }
-
     const rest = signature.replace(/^\s*([a-z][-a-z0-9:_]+)/i, '')
       .replace(/\{\s*[^}]+\s*}/g, '')
       .trim()
     if (rest.length > 0) {
-      this.description = rest
+      this.description = transBrace(rest)
     }
     return this
   }
@@ -490,14 +526,14 @@ export class Command extends BaseCommand {
         if (!d.isOptional && argsRaw.length === 0) {
           throw new Types.ExecuteError(`argument <${d.name} ...> need values`)
         } else {
-          args[d.name] = d.transform(argsRaw)
+          args[d.name] = d.transform ? d.transform(argsRaw) : d
         }
       } else {
         const v = argsRaw.shift() || d.default
         if (!v && !d.isOptional) {
           throw new Types.ExecuteError(`argument <${d.name}> need a value`)
         }
-        args[d.name] = d.transform(v)
+        args[d.name] = d.transform ? d.transform(v) : v
       }
     }
     return args
@@ -572,7 +608,13 @@ export class GroupCommand extends BaseCommand {
     const optionsSinature = options.length > 0 ? '[options]' : ''
     let help = `${colors.yellow('Usage:')}\n node ${this.name} ${optionsSinature} <command> [args...] [command options]`
     if (options.length > 0) {
-      const optionsHelp = options.map(d => '  ' + d.getHelp()).join('\n')
+      const optionsHelp = options.map(d => {
+        let left = d.flag ? `${' '.repeat(2)}-${d.flag}, --${d.name}` : `${' '.repeat(6)}--${d.name}`
+        if (!d.isBoolean && typeof d.default !== 'undefined') {
+          left += '[=' + d.default + ']'
+        }
+        return strWidth(left, 30) + d.description
+      }).join('\n')
       help += `\n\n${colors.yellow('Options:')}\n${optionsHelp}`
     }
     const commandsHelp = Object.keys(this.commands)
