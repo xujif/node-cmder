@@ -2,17 +2,14 @@
 easily generate your command with a string signature. 
   - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond.
 
-
-
 ## Example signature
 `command {arg1} {arg2 : arg2} {--bool-flag} {--A|age=10} description` 
 
 Example:
 ```Typescript
-// test.js
 import { CommandBuilder } from 'node-cmder'
 
-const signature = `{name} {--bool-flag} {--A|age=10} description`
+const signature = '{name} {--bool-flag} {--A|age=10} commanddescription'
 
 CommandBuilder.command(signature)
   .setAction(({ args, options }) => {
@@ -23,22 +20,6 @@ CommandBuilder.command(signature)
 then run it
 ```bash
 $ node test.js --help  
-Usage:
-  command [options] <name>
-
-Arguments:
-  <name>
-
-options:
-  --bool-flag                   
-  -A, --age[=10]                
-
-Description:
-  description
-
-$ node test.js joe --bool-flag -A 20
-
-{ name: 'joe' } { 'bool-flag': true, age: '20' }
 ```
 
 ## Usage
@@ -47,7 +28,6 @@ $ node test.js joe --bool-flag -A 20
 - command name is omissible when not in group commond
 - array arg or optional arg **must** be last arguemnt
 - option shortcut or name can not duplicated
-
 
 ### Option parsing
 ```
@@ -62,7 +42,7 @@ $ node test.js joe --bool-flag -A 20
 {--tags?=*}                  //  array option (optional)
 
 ```
-### argument parsing  
+### Argument parsing  
 
 ```
 {arg}                        // arg
@@ -88,8 +68,9 @@ $ node test.js joe --bool-flag -A 20
 `.execute (argv = process.argv.slice(2))` execute the commond with console.  
 Note: **process will exit automately when action return**  
 return "never resolve Promise" to prevent:  
-`return new Promise(()=>{/**/})` or  
 `return KeepRunning()` KeepRunning is exported by node-cmder
+or return an never resolved Promise like `new Promise(()=>{/**/})`   
+
 
 ## Api
 ### CommandBuilder
@@ -155,155 +136,4 @@ CommandBuilder.groupCommand()
             })
     })
     .execute()
-```
-
-
-
-
-### <a name="interfaces">Interfaces</a>
-all types are difined in src/command.ts
-```Typescript
-class GroupCommand{
-    /**
-     * add a sub commond with Command instance or creator
-     *
-     * @param {(Command | (() => Command))} v
-     * @returns {this}
-     * @memberof GroupCommand
-     */
-    addCommand(v: Command | (() => Command)): this;
-    /**
-     * add a commond with signature
-     *
-     * @param {string} v
-     * @param {Types.Action} action
-     * @returns {this}
-     * @memberof GroupCommand
-     */
-    addCommand(v: string, action: Types.Action): this;
-    /**
-     *  add an option definition with signature
-     *
-     * @param {string} signature
-     * @param {Partial<Types.OptionDefinition>} [part]
-     * @returns
-     * @memberof GroupCommand
-     */
-    addOption(signature: string, part?: Partial<Types.OptionDefinition>): this;
-    /**
-     * get help text but not print
-     *
-     * @returns
-     * @memberof GroupCommand
-     */
-    getHelpText(): string;
-    /**
-     * print help text with console.log
-     *
-     * @returns
-     * @memberof GroupCommand
-     */
-    printHelp(): void;
-    /**
-     * execute the commond
-     *
-     * @param {*} [argv=process.argv.slice(2)]
-     * @returns
-     * @memberof GroupCommand
-     */
-    execute(argv?: string[]): any;
-
-    /**
-     * add version option
-     *
-     * @param {string} version
-     * @param {string} [signature='--V|version']
-     * @returns
-     * @memberof Command
-     */
-   setVersion(version: string, signature?: string): this;
-
-}
-class Command{
-
-    /**
-     * add version option
-     *
-     * @param {string} version
-     * @param {string} [signature='--V|version']
-     * @returns
-     * @memberof Command
-     */
-   setVersion(version: string, signature?: string): this;
-    /**
-     * set the commond action
-     *
-     * @param {Types.Action} func
-     * @memberof Command
-     */
-    setAction(func: Types.Action): this;
-    /**
-     * execute
-     *
-     * @param {*} [argv=process.argv.slice(2)]
-     * @returns
-     * @memberof Command
-     */
-    execute(argv?: string[]): any;
-    /**
-     * add an option definition with signature
-     *
-     * @param {string} signature
-     * @param {Partial<Types.OptionDefinition>} [part]
-     * @returns
-     * @memberof Command
-     */
-    addOption(signature: string, part?: Partial<Types.OptionDefinition>): this;
-    /**
-     * merge option meta
-     *
-     * @param {string} name
-     * @param {Partial<Types.OptionDefinition>} [part]
-     * @returns
-     * @memberof Command
-     */
-    mergeOption(name: string, part?: Partial<Types.OptionDefinition>): this;
-    /**
-     * add an argument definition
-     *
-     * @param {string} signature
-     * @param {Partial<Types.ArgumentDefinition>} [part]
-     * @returns
-     * @memberof Command
-     */
-    addArg(signature: string, part?: Partial<Types.ArgumentDefinition>): this;
-    /**
-     * get help text but not print
-     *
-     * @returns
-     * @memberof GroupCommand
-     */
-    getHelpText(): string;
-    /**
-     * print help text with console.log
-     *
-     * @returns
-     * @memberof GroupCommand
-     */
-    printHelp(): void;
-    /**
-     * remove default --help option
-     *
-     * @memberof Command
-     */
-    removeHelpOption(): this;
-    /**
-     * custom help text
-     *
-     * @param {(string | ((s: string) => string))} s
-     * @param {string} [option='--help']
-     * @memberof Command
-     */
-    customHelp(s: string | ((s: string) => string), option?: string): this;
-}
 ```

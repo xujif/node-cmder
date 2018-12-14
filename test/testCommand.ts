@@ -7,6 +7,9 @@ import { Command, GroupCommand } from '../src/command';
 describe('command', () => {
   it('check defines', () => {
     const c = new Command('test {name} {--bool} {--A|age=10} {--tags?=*} command description')
+    c.addOption({
+      name: 'ext'
+    })
     assert.equal(c.name, 'test')
     assert.equal(c.description, 'command description')
     const args = (c as any).args
@@ -25,6 +28,10 @@ describe('command', () => {
     assert.equal(options['-A'].isOptional, true)
     assert.equal(options['-A'].isBoolean, false)
     assert.equal(options['-A'].default, 10)
+    assert.equal(options['--ext'].name, 'ext')
+    assert.equal(options['--ext'].isOptional, false)
+    assert.equal(options['--ext'].isBoolean, false)
+    assert.equal(options['--ext'].default, undefined)
     assert.equal(options['--tags'].name, 'tags')
     assert.equal(options['--tags'].isOptional, true)
     assert.equal(options['--tags'].isBoolean, false)
