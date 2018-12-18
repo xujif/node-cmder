@@ -272,9 +272,7 @@ export abstract class BaseCommand {
   async execute(argv = process.argv.slice(2)) {
     debug('command execute', argv)
     try {
-      console.log('run')
       const ret = await this.run(argv)
-      console.log(ret, 'ret----')
       process.exit(+ret || 0)
     } catch (e) {
       if (e instanceof Types.ExecuteError) {
@@ -288,7 +286,6 @@ export abstract class BaseCommand {
         process.exit(-1)
       }
     }
-    console.log('xxxx')
   }
 
 
@@ -377,7 +374,6 @@ export class Command extends BaseCommand {
     debug('processOptions', options)
     const args = this.processArgs(raw.args)
     debug('processArgs', args)
-    console.log('run action')
     return this._action({ args, options })
   }
 
