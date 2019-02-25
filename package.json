@@ -1,6 +1,6 @@
 {
   "name": "node-cmder",
-  "version": "2.1.6",
+  "version": "3.0.0",
   "main": "dist/command.js",
   "types": "dist/command.d.ts",
   "homepage": "https://github.com/xujif/node-cmder",
@@ -30,11 +30,13 @@
   "devDependencies": {
     "@types/colors": "^1.2.1",
     "@types/debug": "0.0.30",
+    "@types/glob": "^7.1.1",
     "@types/mocha": "^2.2.48",
     "@types/node": "^8.6.0",
     "espower-typescript": "^9.0.1",
     "mocha": "^5.2.0",
     "power-assert": "^1.6.1",
+    "reflect-metadata": "^0.1.13",
     "rimraf": "^2.6.2",
     "source-map-support": "^0.5.9",
     "tslint": "^5.9.1",
