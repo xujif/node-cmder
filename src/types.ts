@@ -663,9 +663,9 @@ export class GroupCommand extends BaseCommand {
       const file = path.resolve(f)
       const m = require(file)
       const types = Object.values(m)
-        .filter(t => typeof t === 'function' && Reflect.hasMetadata(SymbolMeta, t))
+        .filter(t => typeof t === 'function' && (Reflect as any).hasMetadata(SymbolMeta, t))
       for (let t of types) {
-        this.addCommand(this.meta2Command(t as any, Reflect.getMetadata(SymbolMeta, t)))
+        this.addCommand(this.meta2Command(t as any, (Reflect as any).getMetadata(SymbolMeta, t)))
       }
     }
     return this

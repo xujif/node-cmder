@@ -5,7 +5,7 @@ export { DefineCommand, BaseCommand } from './decractors';
 
 /**
  * build a Command
- *
+ * signature example: `command {arg1} {--O|option=10 : option desc} description` 
  * @export
  * @param {(string | Types.Action)} [signature]
  * @returns {Command}

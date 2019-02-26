@@ -1,5 +1,3 @@
-import 'reflect-metadata';
-
 import { ExecuteParams, SymbolExecuteParams, SymbolMeta } from './types';
 
 export abstract class BaseCommand {
@@ -38,7 +36,7 @@ export interface CommandOption {
 export function DefineCommand(signature: string | CommandOption) {
   return function (target: typeof BaseCommand) {
     const opt = typeof signature === 'string' ? { signature } : signature
-    return Reflect.defineMetadata(SymbolMeta, opt, target)
+    return (Reflect as any).defineMetadata(SymbolMeta, opt, target)
   }
 }
 
