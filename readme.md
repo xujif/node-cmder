@@ -1,7 +1,10 @@
 [中文文档](readme_cn.md)
+
+
 ### Command line tools for Node.js & Typescript
 easily generate your command with a string signature. 
   - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond.
+### ***v3.3.x is not compatible with v2.x.x***
 
 ## Example signature
 `command {arg1} {arg2 : arg2} {--bool-flag} {--A|age=10} description` 

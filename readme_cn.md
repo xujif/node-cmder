@@ -1,5 +1,6 @@
 ### 命令行生成器，（兼容 node.js & typescript)
 灵感来自于 [laravel](https://laravel.com/docs/5.7/artisan) artisan commond.
+### ***v3.3.x 与 2.x.x 不完全兼容***
 
 <a href="#case">说明与示例</a>  
 <a href="#api">API</a>  
