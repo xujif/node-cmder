@@ -1,3 +1,4 @@
+[中文文档](readme_cn.md)
 ### Command line tools for Node.js & Typescript
 easily generate your command with a string signature. 
   - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond.
@@ -73,7 +74,7 @@ or return an never resolved Promise like `new Promise(()=>{/**/})`
 
 
 ## Api
-### CommandBuilder
+### Builder
 - `.command(signature: string, action?: Types.Action | undefined): Command;`
 build a simple commond
 - `.groupCommand(): GroupCommand;` 

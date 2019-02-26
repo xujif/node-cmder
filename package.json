@@ -1,8 +1,8 @@
 {
   "name": "node-cmder",
   "version": "3.0.0",
-  "main": "dist/command.js",
-  "types": "dist/command.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "homepage": "https://github.com/xujif/node-cmder",
   "repository": {
     "type": "git",
