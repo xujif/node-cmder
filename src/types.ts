@@ -1,6 +1,12 @@
 import colors from 'colors/safe';
 import Debug from 'debug';
-import { basename } from 'path';
+import glob from 'glob';
+import path, { basename } from 'path';
+
+import { CommandOption } from './decractors';
+
+export const SymbolExecuteParams = Symbol.for('cmder:execute_params')
+export const SymbolMeta = Symbol.for('cmder:meta')
 
 const debug = Debug('node-cmder')
 
@@ -15,161 +21,148 @@ function transBrace(s: string) {
   return s.replace('%7b', '{').replace('%7d', '}')
 }
 
-export namespace Types {
-  export class DefinationError extends Error {
-    CODE = 'ERR_COMMAND_DEFINATION_ERROR'
+export class DefinationError extends Error {
+  CODE = 'ERR_COMMAND_DEFINATION_ERROR'
+}
+export class ExecuteError extends Error {
+  CODE = 'ERR_COMMAND_EXECUTE_ERROR'
+  exitCode!: number
+  constructor(message: string, exitCode: number = -1) {
+    super(message)
+    this.exitCode = exitCode
   }
-  export class ExecuteError extends Error {
-    CODE = 'ERR_COMMAND_EXECUTE_ERROR'
-    exitCode!: number
-    constructor(message: string, exitCode: number = -1) {
-      super(message)
-      this.exitCode = exitCode
-    }
-  }
+}
 
-  export interface ArgumentDefinition {
-    name: string
-    default?: any
-    description?: string
-    isOptional?: boolean
-    isArray?: boolean
-    transform?: (v: any) => any,
-  }
+export interface ArgumentDefinition {
+  name: string
+  default?: any
+  description?: string
+  isOptional?: boolean
+  isArray?: boolean
+  transform?: (v: any) => any,
+}
 
-  export interface OptionDefinition extends ArgumentDefinition {
-    flag?: string
-    isBoolean?: boolean
-    callback?: (v: any, options: Object) => void
-  }
+export interface OptionDefinition extends ArgumentDefinition {
+  flag?: string
+  isBoolean?: boolean
+  callback?: (v: any, options: Object) => void
+}
 
-  export const defaultArgDef = {
-    description: '',
-    isOptional: false,
-    isArray: false,
-  }
+export const defaultArgDef = {
+  description: '',
+  isOptional: false,
+  isArray: false,
+}
 
-  export const defaultOptionDef = {
-    description: '',
-    isOptional: false,
-    isArray: false,
-    isBoolean: false,
-  }
-
-  /**
-   * argument sinature should be:
-   * compatible with laravel signature:
-   *      name*  : description
-   *      name?  : description
-   *      name?* : description
-   * version?=  : description
-   * version=  : description
-   * array=*  
-   * has-defaut=value
-   */
-  export function parseArgumentSinagure(signature: string) {
-    signature = protectedBrace(signature)
-    if (/^\{.+\}$/.test(signature)) {
-      signature = signature.substring(1, signature.length - 1)
-    }
-    const opt = Object.assign({}, defaultArgDef) as ArgumentDefinition
-    let [exp, ...rest] = signature.split(' : ')
-    if (/\*|\?/.test(exp) && exp.indexOf('=') === -1) {
-      exp = exp.trim().replace(/^([a-z][-\w]+)(\?)?(\*)?$/, "$1$2=$3")
-    }
-    opt.description = transBrace(rest.join(' : '))
-    const m = exp.trim().match(/^([a-z][-\w]+)(\?)?(=.+)?/i)
-    if (!m) {
-      throw new DefinationError('Unable to determine argument name from signature: ' + signature)
-    }
-    opt.name = m[1]
-    opt.isOptional = m[2] === '?'
-    if (m[3]) {
-      const valueExp = m[3].replace(/^=/, '')
-      if (valueExp === '*') {
-        opt.isArray = true
-      } else if (valueExp.length > 1) {
-        opt.isOptional = true
-        opt.default = valueExp.indexOf(' ') > -1 ? valueExp.substring(1, valueExp.length - 1) : valueExp
-      }
-    }
-    return opt
-  }
-
-  /**
-   * option sinature should be:
-   * --version=  : description
-   * --V|version 
-   * --array=*
-   * --has-defaut=value
-   *
-   * @export
-   * @param {string} signature
-   * @returns
-   */
-  export function parseOptionSignature(signature: string) {
-    signature = protectedBrace(signature)
-
-    if (/$\{.+\}^/.test(signature)) {
-      signature = signature.substring(1, signature.length - 1)
-    }
-    const [exp, ...rest] = signature.split(' : ')
-    const m = exp.trim().match(/--([-\w|]+)(\?)?(=.*)?/)
-    if (!m) {
-      throw new DefinationError('Unable to determine option name from signature: ' + signature)
-    }
-    const opt = Object.assign({}, defaultOptionDef) as OptionDefinition
-    opt.description = transBrace(rest.join(' : '))
-    const [flag, name] = m[1].split(/\s*\|\s*/)
-    if (name) {
-      opt.name = name
-      opt.flag = flag
-    } else {
-      opt.name = flag
-    }
-    if (!m[3]) {
-      opt.isOptional = true
-      opt.default = false
-      opt.isBoolean = true
-    } else {
-      const valueExp = m[3].replace(/^=/, '')
-      opt.isOptional = m[2] === '?'
-      if (valueExp === '*') {
-        opt.isArray = true
-        opt.default = []
-      } else if (valueExp.length > 1) {
-        opt.isOptional = true
-        opt.default = valueExp.indexOf(' ') > -1 ? valueExp.substring(1, valueExp.length - 1) : valueExp
-      }
-    }
-    return opt
-  }
-  export type Action = (opt: { args: any, options: any }) => any
+export const defaultOptionDef = {
+  description: '',
+  isOptional: false,
+  isArray: false,
+  isBoolean: false,
 }
 
 /**
- * keep the command run
- * it will return a never resolve promise
+ * argument sinature should be:
+ * compatible with laravel signature:
+ *      name*  : description
+ *      name?  : description
+ *      name?* : description
+ * version?=  : description
+ * version=  : description
+ * array=*  
+ * has-defaut=value
+ */
+export function parseArgumentSinagure(signature: string) {
+  signature = protectedBrace(signature)
+  if (/^\{.+\}$/.test(signature)) {
+    signature = signature.substring(1, signature.length - 1)
+  }
+  const opt = Object.assign({}, defaultArgDef) as ArgumentDefinition
+  let [exp, ...rest] = signature.split(' : ')
+  if (/\*|\?/.test(exp) && exp.indexOf('=') === -1) {
+    exp = exp.trim().replace(/^([a-z][-\w]+)(\?)?(\*)?$/, "$1$2=$3")
+  }
+  opt.description = transBrace(rest.join(' : '))
+  const m = exp.trim().match(/^([a-z][-\w]+)(\?)?(=.+)?/i)
+  if (!m) {
+    throw new DefinationError('Unable to determine argument name from signature: ' + signature)
+  }
+  opt.name = m[1]
+  opt.isOptional = m[2] === '?'
+  if (m[3]) {
+    const valueExp = m[3].replace(/^=/, '')
+    if (valueExp === '*') {
+      opt.isArray = true
+    } else if (valueExp.length > 1) {
+      opt.isOptional = true
+      opt.default = valueExp.indexOf(' ') > -1 ? valueExp.substring(1, valueExp.length - 1) : valueExp
+    }
+  }
+  return opt
+}
+
+/**
+ * option sinature should be:
+ * --version=  : description
+ * --V|version 
+ * --array=*
+ * --has-defaut=value
  *
  * @export
+ * @param {string} signature
  * @returns
  */
-export function KeepRuning() {
-  return new Promise((r, j) => {
-    function keep() {
-      setTimeout(() => keep(), 2147483647)
+export function parseOptionSignature(signature: string) {
+  signature = protectedBrace(signature)
+
+  if (/$\{.+\}^/.test(signature)) {
+    signature = signature.substring(1, signature.length - 1)
+  }
+  const [exp, ...rest] = signature.split(' : ')
+  const m = exp.trim().match(/--([-\w|]+)(\?)?(=.*)?/)
+  if (!m) {
+    throw new DefinationError('Unable to determine option name from signature: ' + signature)
+  }
+  const opt = Object.assign({}, defaultOptionDef) as OptionDefinition
+  opt.description = transBrace(rest.join(' : '))
+  const [flag, name] = m[1].split(/\s*\|\s*/)
+  if (name) {
+    opt.name = name
+    opt.flag = flag
+  } else {
+    opt.name = flag
+  }
+  if (!m[3]) {
+    opt.isOptional = true
+    opt.default = false
+    opt.isBoolean = true
+  } else {
+    const valueExp = m[3].replace(/^=/, '')
+    opt.isOptional = m[2] === '?'
+    if (valueExp === '*') {
+      opt.isArray = true
+      opt.default = []
+    } else if (valueExp.length > 1) {
+      opt.isOptional = true
+      opt.default = valueExp.indexOf(' ') > -1 ? valueExp.substring(1, valueExp.length - 1) : valueExp
     }
-    keep()
-    debug('keep running')
-  })
+  }
+  return opt
 }
+
+export interface ExecuteParams {
+  args: any
+  options: any
+}
+
+export type Action = (args: ExecuteParams) => any
 
 export abstract class BaseCommand {
   name: string = ''
   description: string = ''
   version = '0.0.0'
-  options = {} as { [k: string]: Types.OptionDefinition }
-  args = {} as { [k: string]: Types.ArgumentDefinition }
+  options = {} as { [k: string]: OptionDefinition }
+  args = {} as { [k: string]: ArgumentDefinition }
   abstract run(argv: string[]): any
   abstract getHelpText(): string
 
@@ -214,22 +207,22 @@ export abstract class BaseCommand {
    *  add an option definition with signature
    *
    * @param {string} signature
-   * @param {Partial<Types.OptionDefinition>} [part]
+   * @param {Partial<OptionDefinition>} [part]
    * @returns
    * @memberof GroupCommand
    */
-  addOption(signature: string, part?: Partial<Types.OptionDefinition>): this
+  addOption(signature: string, part?: Partial<OptionDefinition>): this
 
   /**
    * add option definition without signature
    *
-   * @param {Types.OptionDefinition} def
+   * @param {OptionDefinition} def
    * @returns {this}
    * @memberof BaseCommand
    */
-  addOption(def: Types.OptionDefinition): this
+  addOption(def: OptionDefinition): this
   addOption(...params: any[]) {
-    const d = typeof params[0] === 'string' ? Types.parseOptionSignature(params[0]) : Object.assign({}, Types.defaultOptionDef, params[0])
+    const d = typeof params[0] === 'string' ? parseOptionSignature(params[0]) : Object.assign({}, defaultOptionDef, params[0])
     if (params.length > 1) {
       Object.assign(d, params[1])
     }
@@ -239,7 +232,7 @@ export abstract class BaseCommand {
     }
     for (let k of keys) {
       if (this.options[k]) {
-        throw new Types.DefinationError('duplicate option: ' + k)
+        throw new DefinationError('duplicate option: ' + k)
       }
       this.options[k] = d
     }
@@ -250,11 +243,11 @@ export abstract class BaseCommand {
    * merge option meta
    *
    * @param {string} name
-   * @param {Partial<Types.OptionDefinition>} [part]
+   * @param {Partial<OptionDefinition>} [part]
    * @returns
    * @memberof Command
    */
-  mergeOption(name: string, part?: Partial<Types.OptionDefinition>) {
+  mergeOption(name: string, part?: Partial<OptionDefinition>) {
     if (this.options['--' + name]) {
       Object.assign(this.options['--' + name], part)
     }
@@ -275,7 +268,7 @@ export abstract class BaseCommand {
       const ret = await this.run(argv)
       process.exit(+ret || 0)
     } catch (e) {
-      if (e instanceof Types.ExecuteError) {
+      if (e instanceof ExecuteError) {
         const message = `${colors.red('Error:')}\n  ${colors.white(e.message)}`
           + `\n\n${colors.yellow('Help:')}\n  use --help for more information\n`
         process.stderr.write(message)
@@ -295,7 +288,7 @@ export abstract class BaseCommand {
     for (let d of defs) {
       if (d.isArray) {
         if (!d.isOptional && argsRaw.length === 0 && !d.default) {
-          throw new Types.ExecuteError(`argument <${d.name} ...> need values`)
+          throw new ExecuteError(`argument <${d.name} ...> need values`)
         } else {
           const v = argsRaw.length > 0 ? argsRaw : d.default
           args[d.name] = d.transform ? d.transform(v) : v
@@ -303,7 +296,7 @@ export abstract class BaseCommand {
       } else {
         const v = argsRaw.shift() || d.default
         if (!v && !d.isOptional) {
-          throw new Types.ExecuteError(`argument <${d.name}> need a value`)
+          throw new ExecuteError(`argument <${d.name}> need a value`)
         }
         args[d.name] = d.transform ? d.transform(v) : v
       }
@@ -319,7 +312,7 @@ export abstract class BaseCommand {
       .forEach(d => {
         if (typeof optionsRaw[d.name] === 'undefined' && !d.isOptional) {
           const sn = d.flag ? `-${d.flag}, --${d.name}` : `--${d.name}`
-          throw new Types.ExecuteError('require option: ' + sn)
+          throw new ExecuteError('require option: ' + sn)
         }
         const transform = d.transform || function (v) { return v }
         const value = transform(typeof optionsRaw[d.name] !== 'undefined' ? optionsRaw[d.name] : d.default)
@@ -333,11 +326,16 @@ export abstract class BaseCommand {
 }
 
 export class Command extends BaseCommand {
-  protected _action !: Types.Action
-
-  constructor(signature: string = 'command', action?: Types.Action) {
+  protected _action !: Action
+  constructor(signature?: string | Action)
+  constructor(signature?: string, action?: Action)
+  constructor(signature?: string | Action, action?: Action) {
     super()
-    this.parseSignature(signature)
+    if (typeof signature === 'string') {
+      this.parseSignature(signature)
+    } else if (typeof signature === 'function') {
+      this._action = signature
+    }
     if (action) {
       this._action = action
     }
@@ -356,17 +354,17 @@ export class Command extends BaseCommand {
   /**
    * set the commond action
    *
-   * @param {Types.Action} func
+   * @param {Action} func
    * @memberof Command
    */
-  setAction(func: Types.Action): this {
+  setAction(func: Action): this {
     this._action = func
     return this
   }
 
   run(argv: string[]) {
     if (!this._action) {
-      throw new Types.DefinationError('no action defined')
+      throw new DefinationError('no action defined')
     }
     const raw = this.parseArgv(argv)
     debug('parseArgv', raw)
@@ -381,23 +379,23 @@ export class Command extends BaseCommand {
    * add an argument definition
    *
    * @param {string} signature
-   * @param {Partial<Types.ArgumentDefinition>} [part]
+   * @param {Partial<ArgumentDefinition>} [part]
    * @returns
    * @memberof Command
    */
-  addArg(signature: string, part?: Partial<Types.ArgumentDefinition>): this
-  addArg(def: Types.ArgumentDefinition): this
+  addArg(signature: string, part?: Partial<ArgumentDefinition>): this
+  addArg(def: ArgumentDefinition): this
   addArg(...params: any[]) {
-    const d = typeof params[0] === 'string' ? Types.parseArgumentSinagure(params[0]) : Object.assign({}, Types.defaultArgDef, params[0])
+    const d = typeof params[0] === 'string' ? parseArgumentSinagure(params[0]) : Object.assign({}, defaultArgDef, params[0])
     if (params.length > 1) {
       Object.assign(d, params[1])
     }
     const args = Object.keys(this.args).map(k => this.args[k])
     if (args.filter(d => d.isOptional || d.isArray).length > 0) {
-      throw new Types.DefinationError('array or optianal argument must be last')
+      throw new DefinationError('array or optianal argument must be last')
     }
     if (this.args[d.name]) {
-      throw new Types.DefinationError('duplicate args: ' + d.name)
+      throw new DefinationError('duplicate args: ' + d.name)
     }
     this.args[d.name] = d
     return this
@@ -422,7 +420,8 @@ export class Command extends BaseCommand {
       return s
     }).join(' ')
     const optionsSinature = options.length > 0 ? '[options]' : ''
-    let help = `${colors.yellow('Usage:')}\n  ${this.name || 'command'} ${optionsSinature} ${argsSignature}`
+    let help = colors.yellow('Usage:\n');
+    help += ' '.repeat(6) + `${this.name || 'command'} ${optionsSinature} ${argsSignature}`
     if (args.length > 0) {
       const argsHelps = args.map(d => {
         let s = d.isArray ? d.name + ' ...' : d.name
@@ -510,10 +509,10 @@ export class Command extends BaseCommand {
         const [name, _value] = s.split('=')
         const d = this.options[name]
         if (!d) {
-          throw new Types.ExecuteError('unknown option: ' + s)
+          throw new ExecuteError('unknown option: ' + s)
         }
         if (!d.isArray && optionsRaw[d.name]) {
-          throw new Types.ExecuteError('duplicate option provided:  ' + s)
+          throw new ExecuteError('duplicate option provided:  ' + s)
         }
         if (d.isBoolean) {
           optionsRaw[d.name] = true
@@ -521,7 +520,7 @@ export class Command extends BaseCommand {
         } else {
           const value = _value ? _value : argv.shift()
           if (!value) {
-            throw new Types.ExecuteError(`option ${s} need value`)
+            throw new ExecuteError(`option ${s} need value`)
           }
           if (d.isArray) {
             optionsRaw[d.name] = optionsRaw[d.name] || []
@@ -559,6 +558,13 @@ export class GroupCommand extends BaseCommand {
       }
     })
   }
+
+  addCommands(arr: Command[]) {
+    for (let c of arr) {
+      this.addCommand(c)
+    }
+    return this
+  }
   /**
    * add a sub commond with Command instance or creator
    *
@@ -572,12 +578,12 @@ export class GroupCommand extends BaseCommand {
    * add a commond with signature
    *
    * @param {string} v
-   * @param {Types.Action} action
+   * @param {Action} action
    * @returns {this}
    * @memberof GroupCommand
    */
-  addCommand(v: string, action: Types.Action): this
-  addCommand(v: string | BaseCommand | ((g: GroupCommand) => BaseCommand), action?: Types.Action): this {
+  addCommand(v: string, action: Action): this
+  addCommand(v: string | BaseCommand | ((g: GroupCommand) => BaseCommand), action?: Action): this {
     let command!: BaseCommand
     if (typeof v === 'string') {
       command = new Command(v, action)
@@ -586,10 +592,10 @@ export class GroupCommand extends BaseCommand {
     } else if (v instanceof BaseCommand) {
       command = v
     } else {
-      throw new Types.DefinationError('unsupport value')
+      throw new DefinationError('unsupport value')
     }
     if (!command.name) {
-      throw new Types.DefinationError('command should has name when binding to GroupCommand')
+      throw new DefinationError('command should has name when binding to GroupCommand')
     }
     this.commands[command.name] = command
     return this
@@ -608,7 +614,8 @@ export class GroupCommand extends BaseCommand {
       .filter(s => /^--/.test(s)).map(s => this.options[s])
 
     const optionsSinature = options.length > 0 ? '[options]' : ''
-    let help = `${colors.yellow('Usage:')}\n node ${this.name} ${optionsSinature} <command> [args...] [command options]`
+    let help = colors.yellow('Usage:\n');
+    help += ' '.repeat(6) + `node ${this.name} ${optionsSinature} <command> [args...] [command options]`
     if (options.length > 0) {
       const optionsHelp = options.map(d => {
         let left = d.flag ? `${' '.repeat(2)}-${d.flag}, --${d.name}` : `${' '.repeat(6)}--${d.name}`
@@ -621,7 +628,7 @@ export class GroupCommand extends BaseCommand {
     }
     const commandsHelp = Object.keys(this.commands)
       .map(k => this.commands[k])
-      .map(c => '  ' + this.getSubCommondDescription(c))
+      .map(c => ' '.repeat(6) + this.getSubCommondDescription(c))
       .join('\n')
     return help + `\n\n${colors.yellow('Available commands:')}\n${commandsHelp}\n`
   }
@@ -639,15 +646,29 @@ export class GroupCommand extends BaseCommand {
     debug('parseArgvUntilCommand', raw)
     this.processOptions(raw.options)
     if (raw.args.length === 0) {
-      throw new Types.ExecuteError('no commond provided')
+      throw new ExecuteError('no commond provided')
     }
     const sub = raw.args[0]
     debug('call sub command', sub)
     const command = this.commands[sub]
     if (!command) {
-      throw new Types.ExecuteError(`commond "${sub}" is not defined`)
+      throw new ExecuteError(`commond "${sub}" is not defined`)
     }
     return command.run(raw.restArgv)
+  }
+
+  scanCommands(patthern: string): this {
+    const matches = glob.sync(patthern)
+    for (let f of matches) {
+      const file = path.resolve(f)
+      const m = require(file)
+      const types = Object.values(m)
+        .filter(t => typeof t === 'function' && (Reflect as any).hasMetadata(SymbolMeta, t))
+      for (let t of types) {
+        this.addCommand(this.meta2Command(t as any, (Reflect as any).getMetadata(SymbolMeta, t)))
+      }
+    }
+    return this
   }
 
   /**
@@ -657,7 +678,15 @@ export class GroupCommand extends BaseCommand {
    * @memberof Command
    */
   protected getSubCommondDescription(c: BaseCommand) {
-    return colors.green(strWidth(c.name || '<no name>', 30)) + c.description
+    return colors.green(strWidth(c.name || '<no name>', 24)) + c.description
+  }
+
+  protected meta2Command(t: Function, meta: CommandOption) {
+    return new Command(meta.signature, (arg) => {
+      const instance = meta.factory ? meta.factory() : Reflect.construct(t, [])
+      instance[SymbolExecuteParams] = arg
+      return instance.handle()
+    })
   }
 
   protected parseArgvUntilCommand(argv: string[]) {
@@ -668,10 +697,10 @@ export class GroupCommand extends BaseCommand {
         const [name, _value] = s.split('=')
         const d = this.options[name]
         if (!d) {
-          throw new Types.ExecuteError('unknown option: ' + s)
+          throw new ExecuteError('unknown option: ' + s)
         }
         if (!d.isArray && optionsRaw[d.name]) {
-          throw new Types.ExecuteError('duplicate option provided:  ' + s)
+          throw new ExecuteError('duplicate option provided:  ' + s)
         }
         if (d.isBoolean) {
           optionsRaw[d.name] = true
@@ -679,7 +708,7 @@ export class GroupCommand extends BaseCommand {
         } else {
           const value = _value ? _value : argv.shift()
           if (!value) {
-            throw new Types.ExecuteError('no value with option: ' + s)
+            throw new ExecuteError('no value with option: ' + s)
           }
           if (d.isArray) {
             optionsRaw[d.name] = optionsRaw[d.name] || []
@@ -700,15 +729,4 @@ export class GroupCommand extends BaseCommand {
     }
   }
 }
-
-export const CommandBuilder = {
-  command(signature: string, action?: Types.Action) {
-    return new Command(signature, action)
-  },
-  groupCommand() {
-    return new GroupCommand()
-  }
-}
-
-
 
