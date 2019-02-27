@@ -32,7 +32,7 @@ export function buildGroupCommand(): Types.GroupCommand {
  * @returns
  */
 export function KeepRuning() {
-  return new Promise((r, j) => {
+  return new Promise<void>((r, j) => {
     function keep() {
       setTimeout(() => keep(), 2147483647)
     }
