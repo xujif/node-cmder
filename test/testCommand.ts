@@ -2,7 +2,7 @@ import 'mocha';
 
 import assert from 'assert';
 
-import { Command, GroupCommand } from '../src/command';
+import { Command, GroupCommand } from '../src';
 
 describe('command', () => {
   it('check defines', () => {
@@ -161,4 +161,3 @@ describe('group command', () => {
     group.execute(['test', 'joe', '-A', '20'])
   });
 });
-

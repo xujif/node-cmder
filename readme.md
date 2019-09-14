@@ -2,14 +2,17 @@
 
 
 ### Command line tools for Node.js & Typescript
-Easily generate your command with a string signature. 
-  - signature is compatible with [laravel](https://laravel.com/docs/5.7/artisan) artisan commond.
-### ***v3.3.x is not compatible with v2.x.x***
+Easily generate your command with a string signature.
+example:
 
-## Example signature
-`command {arg1} {arg2 : arg2} {--bool-flag} {--A|age=10} description` 
+`command {arg1} {arg2 : arg2} {--bool-flag} {--A|age=10} description`
 
-Example:
+#### signature
+- command name is omissible when not in group commond
+- array-type argument or optional arg **must** be at last
+- option shortcut or name can not be duplicated
+
+## Usage:
 ```Typescript
 import { CommandBuilder } from 'node-cmder'
 
@@ -23,15 +26,8 @@ CommandBuilder.command(signature)
 ```
 then run it
 ```bash
-$ node test.js --help  
+$ node test.js --help
 ```
-
-## Usage
-### commond signature
-```commond {arg1} {arg2} {arg3*} {--O|option} description```
-- command name is omissible when not in group commond
-- array arg or optional arg **must** be last arguemnt
-- option shortcut or name can not duplicated
 
 ### Option parsing
 ```
@@ -46,7 +42,7 @@ $ node test.js --help
 {--tags?=*}                  //  array option (optional)
 
 ```
-### Argument parsing  
+### Argument parsing
 
 ```
 {arg}                        // arg
@@ -61,44 +57,39 @@ $ node test.js --help
 
 ```
 ### Option transform and callback
-`.mergeOption('age',{transform:parseInt})` transform age to int   
+`.mergeOption('age',{transform:parseInt})` transform age to int
 `.mergeOption('age',{callback:(v)=>console.log(v)})` option callback
 
-### special option
-- `---help` enable by default, generate help automately. call `.removeHelpOption()` to disable it or call `.customHelp()` to customize.
-- `---V|version`  disable by default. call `.setVersion(v:string)` to enable.
+### built-in options
+- `---help` enable by default, generate help automately. call `.removeHelpOption()` to disable it or `.customHelp()` to customize.
+- `---V|version`  to print command version , it is disabled by default. call `.setVersion(v:string)` to enable it.
 
 ### Execute command
-`.execute (argv = process.argv.slice(2))` execute the commond with console.  
-Note: **process will exit automately when action return**  
-return "never resolve Promise" to prevent:  
-`return KeepRunning()` KeepRunning is exported by node-cmder
-or return an never resolved Promise like `new Promise(()=>{/**/})`   
+`.execute (argv = process.argv.slice(2))` execute the commond with console.
+Note: **process will exit automately when action return**
+return "a never resolve Promise" to prevent, like `new Promise(()=>{/**/})`
 
-
-## Api
-### Builder
+## Command Builder
 - `.command(signature: string, action?: Types.Action | undefined): Command;`
 build a simple commond
-- `.groupCommand(): GroupCommand;` 
+- `.groupCommand(): GroupCommand;`
 build a group commond with can add sub commonds
 ### Command & GroupCommand
-- `.run(argv:string[])` run the command. different from `.execute`:  
+- `.run(argv:string[])` run the command. different from `.execute`:
     - `.run` does not handle any Error,suitable for being called by program
     - `.execute` handle and print erros to terminal and exit process after action return.
 
-- `.printHelp()` print the help with console.log  
+- `.printHelp()` print the help with console.log
 - `.getHelpText()` get the help text
-- `.addOption()` add the extra option 
+- `.addOption()` add the extra option
 - `.addArg()` add the extra argument (only Command)
 - `.mergeOption(name,opt)` set option metas
 
 
 - more api are in [Section Interfaces](#interfaces)
 
-## Examples
 ### build command step by step
-`.addArg` or `.addOption` method does not need `{`  `}` 
+`.addArg` or `.addOption` method does not need `{`  `}`
 ```Typescript
 CommandBuilder.command('test {name : arg}')
     .addArg('name2')

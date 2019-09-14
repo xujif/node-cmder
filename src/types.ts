@@ -10,14 +10,14 @@ export const SymbolMeta = Symbol.for('cmder:meta')
 
 const debug = Debug('node-cmder')
 
-function strWidth(s: string, w: number) {
+function strWidth (s: string, w: number) {
   return s + ' '.repeat(w - s.length)
 }
 
-function protectedBrace(s: string) {
+function protectedBrace (s: string) {
   return s.replace('{{', '%7b').replace('}}', '%7d')
 }
-function transBrace(s: string) {
+function transBrace (s: string) {
   return s.replace('%7b', '{').replace('%7d', '}')
 }
 
@@ -69,10 +69,10 @@ export const defaultOptionDef = {
  *      name?* : description
  * version?=  : description
  * version=  : description
- * array=*  
+ * array=*
  * has-defaut=value
  */
-export function parseArgumentSinagure(signature: string) {
+export function parseArgumentSinagure (signature: string) {
   signature = protectedBrace(signature)
   if (/^\{.+\}$/.test(signature)) {
     signature = signature.substring(1, signature.length - 1)
@@ -104,7 +104,7 @@ export function parseArgumentSinagure(signature: string) {
 /**
  * option sinature should be:
  * --version=  : description
- * --V|version 
+ * --V|version
  * --array=*
  * --has-defaut=value
  *
@@ -112,7 +112,7 @@ export function parseArgumentSinagure(signature: string) {
  * @param {string} signature
  * @returns
  */
-export function parseOptionSignature(signature: string) {
+export function parseOptionSignature (signature: string) {
   signature = protectedBrace(signature)
 
   if (/$\{.+\}^/.test(signature)) {
@@ -163,10 +163,10 @@ export abstract class BaseCommand {
   version = '0.0.0'
   options = {} as { [k: string]: OptionDefinition }
   args = {} as { [k: string]: ArgumentDefinition }
-  abstract run(argv: string[]): any
-  abstract getHelpText(): string
+  abstract run (argv: string[]): any
+  abstract getHelpText (): string
 
-  setName(name: string) {
+  setName (name: string) {
     this.name = name
   }
 
@@ -178,7 +178,7 @@ export abstract class BaseCommand {
    * @returns
    * @memberof Command
    */
-  setVersion(version: string, signature = '--V|version') {
+  setVersion (version: string, signature = '--V|version') {
     this.version = version
     this.addOption(signature, {
       callback: (v) => {
@@ -198,7 +198,7 @@ export abstract class BaseCommand {
    * @returns
    * @memberof GroupCommand
    */
-  printHelp() {
+  printHelp () {
     process.stdout.write(this.getHelpText())
   }
 
@@ -211,7 +211,7 @@ export abstract class BaseCommand {
    * @returns
    * @memberof GroupCommand
    */
-  addOption(signature: string, part?: Partial<OptionDefinition>): this
+  addOption (signature: string, part?: Partial<OptionDefinition>): this
 
   /**
    * add option definition without signature
@@ -220,8 +220,8 @@ export abstract class BaseCommand {
    * @returns {this}
    * @memberof BaseCommand
    */
-  addOption(def: OptionDefinition): this
-  addOption(...params: any[]) {
+  addOption (def: OptionDefinition): this
+  addOption (...params: any[]) {
     const d = typeof params[0] === 'string' ? parseOptionSignature(params[0]) : Object.assign({}, defaultOptionDef, params[0])
     if (params.length > 1) {
       Object.assign(d, params[1])
@@ -247,7 +247,7 @@ export abstract class BaseCommand {
    * @returns
    * @memberof Command
    */
-  mergeOption(name: string, part?: Partial<OptionDefinition>) {
+  mergeOption (name: string, part?: Partial<OptionDefinition>) {
     if (this.options['--' + name]) {
       Object.assign(this.options['--' + name], part)
     }
@@ -262,7 +262,7 @@ export abstract class BaseCommand {
    * @returns
    * @memberof Command
    */
-  async execute(argv = process.argv.slice(2)) {
+  async execute (argv = process.argv.slice(2)) {
     debug('command execute', argv)
     try {
       const ret = await this.run(argv)
@@ -282,7 +282,7 @@ export abstract class BaseCommand {
   }
 
 
-  protected processArgs(argsRaw: string[]) {
+  protected processArgs (argsRaw: string[]) {
     const args = {} as any
     const defs = Object.keys(this.args).map(k => this.args[k])
     for (let d of defs) {
@@ -304,7 +304,7 @@ export abstract class BaseCommand {
     return args
   }
 
-  protected processOptions(optionsRaw: any) {
+  protected processOptions (optionsRaw: any) {
     const options = {} as any
     Object.keys(this.options)
       .filter(s => /^--/.test(s))
@@ -357,12 +357,12 @@ export class Command extends BaseCommand {
    * @param {Action} func
    * @memberof Command
    */
-  setAction(func: Action): this {
+  setAction (func: Action): this {
     this._action = func
     return this
   }
 
-  run(argv: string[]) {
+  run (argv: string[]) {
     if (!this._action) {
       throw new DefinationError('no action defined')
     }
@@ -383,9 +383,9 @@ export class Command extends BaseCommand {
    * @returns
    * @memberof Command
    */
-  addArg(signature: string, part?: Partial<ArgumentDefinition>): this
-  addArg(def: ArgumentDefinition): this
-  addArg(...params: any[]) {
+  addArg (signature: string, part?: Partial<ArgumentDefinition>): this
+  addArg (def: ArgumentDefinition): this
+  addArg (...params: any[]) {
     const d = typeof params[0] === 'string' ? parseArgumentSinagure(params[0]) : Object.assign({}, defaultArgDef, params[0])
     if (params.length > 1) {
       Object.assign(d, params[1])
@@ -408,7 +408,7 @@ export class Command extends BaseCommand {
    * @returns
    * @memberof GroupCommand
    */
-  getHelpText() {
+  getHelpText () {
     const args = Object.keys(this.args).map(k => this.args[k])
     const options = Object.keys(this.options)
       .filter(s => /^--/.test(s)).map(s => this.options[s])
@@ -447,11 +447,11 @@ export class Command extends BaseCommand {
   }
 
   /**
-   * remove default --help option 
+   * remove default --help option
    *
    * @memberof Command
    */
-  removeHelpOption() {
+  removeHelpOption () {
     delete this.options['--help']
     return this
   }
@@ -463,7 +463,7 @@ export class Command extends BaseCommand {
    * @param {string} [option='--help']
    * @memberof Command
    */
-  customHelp(s: string | ((origin: string) => string), option = '--help') {
+  customHelp (s: string | ((origin: string) => string), option = '--help') {
     this.removeHelpOption()
       .addOption(`${option} : print this help message`, {
         callback: (v) => {
@@ -477,7 +477,7 @@ export class Command extends BaseCommand {
     return this
   }
 
-  protected parseSignature(signature: string) {
+  protected parseSignature (signature: string) {
     signature = protectedBrace(signature)
     const nameMatch = signature.match(/^\s*([a-z][-a-z0-9:_]+)/i)
     if (nameMatch) {
@@ -501,7 +501,7 @@ export class Command extends BaseCommand {
     return this
   }
 
-  protected parseArgv(argv: string[]) {
+  protected parseArgv (argv: string[]) {
     const optionsRaw = {} as any
     const argsRaw: string[] = []
     for (let s = argv.shift(); s; s = argv.shift()) {
@@ -559,7 +559,7 @@ export class GroupCommand extends BaseCommand {
     })
   }
 
-  addCommands(arr: Command[]) {
+  addCommands (arr: Command[]) {
     for (let c of arr) {
       this.addCommand(c)
     }
@@ -572,7 +572,7 @@ export class GroupCommand extends BaseCommand {
    * @returns {this}
    * @memberof GroupCommand
    */
-  addCommand(v: BaseCommand | ((g: GroupCommand) => BaseCommand)): this
+  addCommand (v: BaseCommand | ((g: GroupCommand) => BaseCommand)): this
 
   /**
    * add a commond with signature
@@ -582,8 +582,8 @@ export class GroupCommand extends BaseCommand {
    * @returns {this}
    * @memberof GroupCommand
    */
-  addCommand(v: string, action: Action): this
-  addCommand(v: string | BaseCommand | ((g: GroupCommand) => BaseCommand), action?: Action): this {
+  addCommand (v: string, action: Action): this
+  addCommand (v: string | BaseCommand | ((g: GroupCommand) => BaseCommand), action?: Action): this {
     let command!: BaseCommand
     if (typeof v === 'string') {
       command = new Command(v, action)
@@ -609,7 +609,7 @@ export class GroupCommand extends BaseCommand {
    * @returns
    * @memberof GroupCommand
    */
-  getHelpText() {
+  getHelpText () {
     const options = Object.keys(this.options)
       .filter(s => /^--/.test(s)).map(s => this.options[s])
 
@@ -641,7 +641,7 @@ export class GroupCommand extends BaseCommand {
    * @returns
    * @memberof GroupCommand
    */
-  run(argv: string[]) {
+  run (argv: string[]) {
     const raw = this.parseArgvUntilCommand(argv)
     debug('parseArgvUntilCommand', raw)
     this.processOptions(raw.options)
@@ -657,7 +657,7 @@ export class GroupCommand extends BaseCommand {
     return command.run(raw.restArgv)
   }
 
-  scanCommands(patthern: string): this {
+  scanCommands (patthern: string): this {
     const matches = glob.sync(patthern)
     for (let f of matches) {
       const file = path.resolve(f)
@@ -677,11 +677,11 @@ export class GroupCommand extends BaseCommand {
    * @returns
    * @memberof Command
    */
-  protected getSubCommondDescription(c: BaseCommand) {
+  protected getSubCommondDescription (c: BaseCommand) {
     return colors.green(strWidth(c.name || '<no name>', 24)) + c.description
   }
 
-  protected meta2Command(t: Function, meta: CommandOption) {
+  protected meta2Command (t: Function, meta: CommandOption) {
     return new Command(meta.signature, (arg) => {
       const instance = meta.factory ? meta.factory() : Reflect.construct(t, [])
       instance[SymbolExecuteParams] = arg
@@ -689,7 +689,7 @@ export class GroupCommand extends BaseCommand {
     })
   }
 
-  protected parseArgvUntilCommand(argv: string[]) {
+  protected parseArgvUntilCommand (argv: string[]) {
     const optionsRaw = {} as any
     const argsRaw: string[] = []
     for (let s = argv.shift(); s; s = argv.shift()) {
@@ -729,4 +729,3 @@ export class GroupCommand extends BaseCommand {
     }
   }
 }
-

@@ -10,7 +10,7 @@ export abstract class BaseCommand {
    * @returns
    * @memberof BaseCommand
    */
-  arg(name: string) {
+  arg (name: string) {
     return this[SymbolExecuteParams].args[name]
   }
 
@@ -21,11 +21,11 @@ export abstract class BaseCommand {
    * @returns
    * @memberof BaseCommand
    */
-  option(name: string) {
+  option (name: string) {
     return this[SymbolExecuteParams].options[name]
   }
 
-  abstract handle(): any
+  abstract handle (): any
 }
 
 export interface CommandOption {
@@ -33,10 +33,9 @@ export interface CommandOption {
   factory?: () => any
 }
 
-export function DefineCommand(signature: string | CommandOption) {
+export function DefineCommand (signature: string | CommandOption) {
   return function (target: typeof BaseCommand) {
     const opt = typeof signature === 'string' ? { signature } : signature
     return (Reflect as any).defineMetadata(SymbolMeta, opt, target)
   }
 }
-
