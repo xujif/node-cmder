@@ -34,7 +34,7 @@
     "@types/mocha": "^2.2.48",
     "@types/node": "^8.6.0",
     "espower-typescript": "^9.0.1",
-    "mocha": "^5.2.0",
+    "mocha": "^10.2.0",
     "power-assert": "^1.6.1",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^2.6.2",
