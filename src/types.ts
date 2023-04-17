@@ -1,6 +1,5 @@
 import colors from 'colors/safe';
 import Debug from 'debug';
-import glob from 'glob';
 import path, { basename } from 'path';
 
 import { CommandOption } from './decractors';
@@ -658,7 +657,7 @@ export class GroupCommand extends BaseCommand {
   }
 
   scanCommands (patthern: string): this {
-    const matches = glob.sync(patthern)
+    const matches = require('glob').sync(patthern)
     for (let f of matches) {
       const file = path.resolve(f)
       const m = require(file)
